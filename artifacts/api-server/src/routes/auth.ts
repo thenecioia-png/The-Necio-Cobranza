@@ -1,8 +1,12 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, businessesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { LoginBody } from "@workspace/api-zod";
 import crypto from "crypto";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as FacebookStrategy } from "passport-facebook";
+import { Strategy as GitHubStrategy } from "passport-github2";
 
 const router: IRouter = Router();
 
@@ -26,6 +30,218 @@ function mapUser(user: typeof usersTable.$inferSelect) {
   };
 }
 
+// Generate a unique username from a name or email
+async function generateUsername(base: string): Promise<string> {
+  const slug = base.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16) || "user";
+  let username = slug;
+  let attempt = 0;
+  while (true) {
+    const existing = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.username, username))
+      .limit(1);
+    if (existing.length === 0) return username;
+    attempt++;
+    username = `${slug}${attempt}`;
+  }
+}
+
+// Find or create user from OAuth
+async function findOrCreateOAuthUser(
+  provider: string,
+  oauthId: string,
+  profile: { name: string; email?: string; avatarUrl?: string }
+) {
+  // Try to find by provider + id
+  const [existing] = await db
+    .select()
+    .from(usersTable)
+    .where(and(eq(usersTable.oauthProvider, provider), eq(usersTable.oauthId, oauthId)))
+    .limit(1);
+
+  if (existing) return existing;
+
+  // Try to find by email if provided
+  if (profile.email) {
+    const [byEmail] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, profile.email))
+      .limit(1);
+    if (byEmail) {
+      // Link OAuth to existing account
+      const [updated] = await db
+        .update(usersTable)
+        .set({ oauthProvider: provider, oauthId, avatarUrl: profile.avatarUrl ?? null })
+        .where(eq(usersTable.id, byEmail.id))
+        .returning();
+      return updated;
+    }
+  }
+
+  // Create new business + user
+  const [business] = await db.insert(businessesTable).values({
+    name: `${profile.name}'s Negocio`,
+    planType: "basic",
+  }).returning();
+
+  const username = await generateUsername(profile.email?.split("@")[0] || profile.name);
+
+  const [user] = await db.insert(usersTable).values({
+    username,
+    name: profile.name,
+    email: profile.email ?? null,
+    oauthProvider: provider,
+    oauthId,
+    avatarUrl: profile.avatarUrl ?? null,
+    role: "admin",
+    businessId: business.id,
+  }).returning();
+
+  return user;
+}
+
+// --- Passport strategies ---
+
+const baseUrl = process.env.NODE_ENV === "production"
+  ? `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`
+  : `https://${process.env.REPLIT_DEV_DOMAIN}`;
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: `${baseUrl}/api/auth/google/callback`,
+      scope: ["profile", "email"],
+    },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        const avatarUrl = profile.photos?.[0]?.value;
+        const user = await findOrCreateOAuthUser("google", profile.id, {
+          name: profile.displayName || "Usuario",
+          email,
+          avatarUrl,
+        });
+        done(null, user);
+      } catch (err) {
+        done(err as Error);
+      }
+    }
+  ));
+}
+
+if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
+  passport.use(new FacebookStrategy(
+    {
+      clientID: process.env.FACEBOOK_APP_ID,
+      clientSecret: process.env.FACEBOOK_APP_SECRET,
+      callbackURL: `${baseUrl}/api/auth/facebook/callback`,
+      profileFields: ["id", "displayName", "emails", "photos"],
+    },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        const avatarUrl = profile.photos?.[0]?.value;
+        const user = await findOrCreateOAuthUser("facebook", profile.id, {
+          name: profile.displayName || "Usuario",
+          email,
+          avatarUrl,
+        });
+        done(null, user);
+      } catch (err) {
+        done(err as Error);
+      }
+    }
+  ));
+}
+
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  passport.use(new GitHubStrategy(
+    {
+      clientID: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      callbackURL: `${baseUrl}/api/auth/github/callback`,
+    },
+    async (_accessToken: string, _refreshToken: string, profile: any, done: any) => {
+      try {
+        const email = profile.emails?.[0]?.value;
+        const avatarUrl = profile.photos?.[0]?.value;
+        const user = await findOrCreateOAuthUser("github", profile.id, {
+          name: profile.displayName || profile.username || "Usuario",
+          email,
+          avatarUrl,
+        });
+        done(null, user);
+      } catch (err) {
+        done(err as Error);
+      }
+    }
+  ));
+}
+
+// Minimal passport session serialization (stores userId in cookie-session)
+passport.serializeUser((user: any, done) => done(null, user.id));
+passport.deserializeUser(async (id: number, done) => {
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+    done(null, user || false);
+  } catch (err) {
+    done(err);
+  }
+});
+
+// Initialize passport (without session — we use cookie-session manually)
+router.use(passport.initialize());
+
+// --- OAuth routes ---
+
+// Google
+router.get("/google", passport.authenticate("google", { scope: ["profile", "email"], session: false }));
+router.get("/google/callback",
+  passport.authenticate("google", { session: false, failureRedirect: "/?error=oauth" }),
+  (req, res) => {
+    if (req.user) (req.session as any).userId = (req.user as any).id;
+    const role = (req.user as any)?.role;
+    res.redirect(role === "cobrador" ? "/today" : "/dashboard");
+  }
+);
+
+// Facebook
+router.get("/facebook", passport.authenticate("facebook", { scope: ["email"], session: false }));
+router.get("/facebook/callback",
+  passport.authenticate("facebook", { session: false, failureRedirect: "/?error=oauth" }),
+  (req, res) => {
+    if (req.user) (req.session as any).userId = (req.user as any).id;
+    const role = (req.user as any)?.role;
+    res.redirect(role === "cobrador" ? "/today" : "/dashboard");
+  }
+);
+
+// GitHub
+router.get("/github", passport.authenticate("github", { scope: ["user:email"], session: false }));
+router.get("/github/callback",
+  passport.authenticate("github", { session: false, failureRedirect: "/?error=oauth" }),
+  (req, res) => {
+    if (req.user) (req.session as any).userId = (req.user as any).id;
+    const role = (req.user as any)?.role;
+    res.redirect(role === "cobrador" ? "/today" : "/dashboard");
+  }
+);
+
+// Returns which OAuth providers are configured
+router.get("/oauth-providers", (_req, res) => {
+  res.json({
+    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    facebook: !!(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
+    github: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+  });
+});
+
+// --- Traditional auth ---
+
 router.post("/register", async (req, res) => {
   const { username, password, name, businessName } = req.body;
   if (!username || !password || !name) {
@@ -44,7 +260,6 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  // Create business first
   const [business] = await db.insert(businessesTable).values({
     name: businessName || `${name}'s Business`,
     planType: "basic",

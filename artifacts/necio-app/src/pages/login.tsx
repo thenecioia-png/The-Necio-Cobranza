@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useLogin, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
+import { SocialLoginButtons } from "@/components/social-login";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -13,6 +14,17 @@ export default function Login() {
   
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("error") === "oauth") {
+      toast({
+        variant: "destructive",
+        title: "Error de autenticación",
+        description: "No se pudo iniciar sesión con esa cuenta. Intenta de nuevo.",
+      });
+    }
+  }, []);
 
   const loginMutation = useLogin({
     mutation: {
@@ -117,7 +129,11 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-5">
+          <SocialLoginButtons />
+        </div>
+
+        <div className="mt-5 text-center">
           <p className="text-muted-foreground text-sm">
             ¿No tienes cuenta?{" "}
             <button

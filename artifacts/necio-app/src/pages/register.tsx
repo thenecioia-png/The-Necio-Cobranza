@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, User, UserPlus, ArrowLeft, Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { SocialLoginButtons } from "@/components/social-login";
 
 export default function Register() {
   const [, setLocation] = useLocation();
@@ -191,7 +192,11 @@ export default function Register() {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-5">
+          <SocialLoginButtons />
+        </div>
+
+        <div className="mt-5 text-center">
           <button
             onClick={() => setLocation("/")}
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-white text-sm transition-colors"
