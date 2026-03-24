@@ -5,6 +5,8 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const app: Express = express();
 
 app.use(
@@ -37,6 +39,7 @@ app.use(
     maxAge: 7 * 24 * 60 * 60 * 1000,
     sameSite: "lax",
     httpOnly: true,
+    secure: isProduction,
   })
 );
 
