@@ -39,12 +39,12 @@ export default function LoanCreate() {
     }
   });
 
-  const watchAmount = watch("amount") || 0;
-  const watchInterest = watch("interestRate") || 0;
-  const watchCount = watch("installmentsCount") || 1;
+  const watchAmount = Number(watch("amount")) || 0;
+  const watchInterest = Number(watch("interestRate")) || 0;
+  const watchCount = Number(watch("installmentsCount")) || 1;
 
   const totalAmount = watchAmount + (watchAmount * (watchInterest / 100));
-  const installmentAmount = totalAmount / watchCount;
+  const installmentAmount = watchCount > 0 ? totalAmount / watchCount : 0;
 
   const createMutation = useCreateLoan({
     mutation: {
