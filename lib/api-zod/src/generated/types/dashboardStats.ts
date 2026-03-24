@@ -8,8 +8,14 @@
 
 export interface DashboardStats {
   totalClients: number;
+  activeClients: number;
+  delinquentClients: number;
   todayCollected: number;
   todayPending: number;
   todayTotal: number;
   activeLoans: number;
+  totalLent: number;
+  totalCollected: number;
+  moneyOnStreet: number;
+  delinquencyRate: number;
 }

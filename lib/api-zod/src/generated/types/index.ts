@@ -7,6 +7,7 @@
  */
 
 export * from "./client";
+export * from "./clientStatus";
 export * from "./clientWithLoans";
 export * from "./createClientRequest";
 export * from "./createLoanRequest";
@@ -23,4 +24,6 @@ export * from "./loanWithInstallments";
 export * from "./loginRequest";
 export * from "./loginResponse";
 export * from "./successResponse";
+export * from "./updateClientRequest";
+export * from "./updateClientRequestStatus";
 export * from "./user";

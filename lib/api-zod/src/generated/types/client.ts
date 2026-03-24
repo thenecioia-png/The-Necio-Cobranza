@@ -5,6 +5,7 @@
  * The Necio Cobranza API
  * OpenAPI spec version: 0.1.0
  */
+import type { ClientStatus } from "./clientStatus";
 
 export interface Client {
   id: number;
@@ -12,5 +13,8 @@ export interface Client {
   phone?: string;
   address?: string;
   cedula?: string;
+  status: ClientStatus;
+  riskScore: number;
+  notes?: string;
   createdAt: Date;
 }

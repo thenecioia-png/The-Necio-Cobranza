@@ -30,6 +30,7 @@ import type {
   LoginRequest,
   LoginResponse,
   SuccessResponse,
+  UpdateClientRequest,
   User,
 } from "./api.schemas";
 
@@ -504,6 +505,93 @@ export const useCreateClient = <
   TContext
 > => {
   return useMutation(getCreateClientMutationOptions(options));
+};
+
+/**
+ * @summary Update client status, risk score or notes
+ */
+export const getUpdateClientUrl = (id: number) => {
+  return `/api/clients/${id}`;
+};
+
+export const updateClient = async (
+  id: number,
+  updateClientRequest: UpdateClientRequest,
+  options?: RequestInit,
+): Promise<Client> => {
+  return customFetch<Client>(getUpdateClientUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateClientRequest),
+  });
+};
+
+export const getUpdateClientMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClient>>,
+    TError,
+    { id: number; data: BodyType<UpdateClientRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateClient>>,
+  TError,
+  { id: number; data: BodyType<UpdateClientRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateClient"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateClient>>,
+    { id: number; data: BodyType<UpdateClientRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateClient(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateClientMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateClient>>
+>;
+export type UpdateClientMutationBody = BodyType<UpdateClientRequest>;
+export type UpdateClientMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update client status, risk score or notes
+ */
+export const useUpdateClient = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateClient>>,
+    TError,
+    { id: number; data: BodyType<UpdateClientRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateClient>>,
+  TError,
+  { id: number; data: BodyType<UpdateClientRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateClientMutationOptions(options));
 };
 
 /**

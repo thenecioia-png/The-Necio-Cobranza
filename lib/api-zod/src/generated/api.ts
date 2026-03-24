@@ -27,6 +27,7 @@ export const LoginResponse = zod.object({
     id: zod.number(),
     username: zod.string(),
     name: zod.string(),
+    role: zod.string(),
   }),
   message: zod.string(),
 });
@@ -45,6 +46,7 @@ export const GetMeResponse = zod.object({
   id: zod.number(),
   username: zod.string(),
   name: zod.string(),
+  role: zod.string(),
 });
 
 /**
@@ -56,6 +58,9 @@ export const GetClientsResponseItem = zod.object({
   phone: zod.string().optional(),
   address: zod.string().optional(),
   cedula: zod.string().optional(),
+  status: zod.enum(["active", "delinquent", "uncollectible"]),
+  riskScore: zod.number(),
+  notes: zod.string().optional(),
   createdAt: zod.date(),
 });
 export const GetClientsResponse = zod.array(GetClientsResponseItem);
@@ -68,6 +73,35 @@ export const CreateClientBody = zod.object({
   phone: zod.string().optional(),
   address: zod.string().optional(),
   cedula: zod.string().optional(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Update client status, risk score or notes
+ */
+export const UpdateClientParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateClientBody = zod.object({
+  status: zod.enum(["active", "delinquent", "uncollectible"]).optional(),
+  riskScore: zod.number().optional(),
+  notes: zod.string().optional(),
+  name: zod.string().optional(),
+  phone: zod.string().optional(),
+  address: zod.string().optional(),
+});
+
+export const UpdateClientResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  phone: zod.string().optional(),
+  address: zod.string().optional(),
+  cedula: zod.string().optional(),
+  status: zod.enum(["active", "delinquent", "uncollectible"]),
+  riskScore: zod.number(),
+  notes: zod.string().optional(),
+  createdAt: zod.date(),
 });
 
 /**
@@ -83,6 +117,9 @@ export const GetClientResponse = zod.object({
   phone: zod.string().optional(),
   address: zod.string().optional(),
   cedula: zod.string().optional(),
+  status: zod.enum(["active", "delinquent", "uncollectible"]),
+  riskScore: zod.number(),
+  notes: zod.string().optional(),
   createdAt: zod.date(),
   loans: zod.array(
     zod.object({
@@ -161,8 +198,14 @@ export const PayInstallmentResponse = zod.object({
  */
 export const GetDashboardStatsResponse = zod.object({
   totalClients: zod.number(),
+  activeClients: zod.number(),
+  delinquentClients: zod.number(),
   todayCollected: zod.number(),
   todayPending: zod.number(),
   todayTotal: zod.number(),
   activeLoans: zod.number(),
+  totalLent: zod.number(),
+  totalCollected: zod.number(),
+  moneyOnStreet: zod.number(),
+  delinquencyRate: zod.number(),
 });

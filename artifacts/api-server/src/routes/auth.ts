@@ -43,7 +43,7 @@ router.post("/register", async (req, res) => {
   (req.session as any).userId = user.id;
 
   res.status(201).json({
-    user: { id: user.id, username: user.username, name: user.name },
+    user: { id: user.id, username: user.username, name: user.name, role: user.role },
     message: "Cuenta creada exitosamente"
   });
 });
@@ -73,7 +73,7 @@ router.post("/login", async (req, res) => {
   (req.session as any).userId = user.id;
 
   res.json({
-    user: { id: user.id, username: user.username, name: user.name },
+    user: { id: user.id, username: user.username, name: user.name, role: user.role },
     message: "Sesión iniciada"
   });
 });
@@ -102,7 +102,7 @@ router.get("/me", async (req, res) => {
     return;
   }
 
-  res.json({ id: user.id, username: user.username, name: user.name });
+  res.json({ id: user.id, username: user.username, name: user.name, role: user.role });
 });
 
 export default router;

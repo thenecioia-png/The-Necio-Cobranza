@@ -26,6 +26,7 @@ export interface User {
   id: number;
   username: string;
   name: string;
+  role: string;
 }
 
 export interface LoginResponse {
@@ -38,7 +39,34 @@ export interface CreateClientRequest {
   phone?: string;
   address?: string;
   cedula?: string;
+  notes?: string;
 }
+
+export type UpdateClientRequestStatus =
+  (typeof UpdateClientRequestStatus)[keyof typeof UpdateClientRequestStatus];
+
+export const UpdateClientRequestStatus = {
+  active: "active",
+  delinquent: "delinquent",
+  uncollectible: "uncollectible",
+} as const;
+
+export interface UpdateClientRequest {
+  status?: UpdateClientRequestStatus;
+  riskScore?: number;
+  notes?: string;
+  name?: string;
+  phone?: string;
+  address?: string;
+}
+
+export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
+
+export const ClientStatus = {
+  active: "active",
+  delinquent: "delinquent",
+  uncollectible: "uncollectible",
+} as const;
 
 export interface Client {
   id: number;
@@ -46,6 +74,9 @@ export interface Client {
   phone?: string;
   address?: string;
   cedula?: string;
+  status: ClientStatus;
+  riskScore: number;
+  notes?: string;
   createdAt: string;
 }
 
@@ -81,12 +112,24 @@ export interface LoanWithInstallments {
   installments: Installment[];
 }
 
+export type ClientWithLoansStatus =
+  (typeof ClientWithLoansStatus)[keyof typeof ClientWithLoansStatus];
+
+export const ClientWithLoansStatus = {
+  active: "active",
+  delinquent: "delinquent",
+  uncollectible: "uncollectible",
+} as const;
+
 export interface ClientWithLoans {
   id: number;
   name: string;
   phone?: string;
   address?: string;
   cedula?: string;
+  status: ClientWithLoansStatus;
+  riskScore: number;
+  notes?: string;
   createdAt: string;
   loans: LoanWithInstallments[];
 }
@@ -146,8 +189,14 @@ export interface InstallmentWithClient {
 
 export interface DashboardStats {
   totalClients: number;
+  activeClients: number;
+  delinquentClients: number;
   todayCollected: number;
   todayPending: number;
   todayTotal: number;
   activeLoans: number;
+  totalLent: number;
+  totalCollected: number;
+  moneyOnStreet: number;
+  delinquencyRate: number;
 }

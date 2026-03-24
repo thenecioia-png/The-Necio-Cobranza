@@ -72,7 +72,14 @@ function Sidebar() {
         <div className="bg-background rounded-2xl p-4 border border-border shadow-inner mb-4">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-display mb-1">Usuario Activo</p>
           <p className="font-medium text-foreground truncate">{user?.name || "Cargando..."}</p>
-          <p className="text-xs text-muted-foreground truncate">@{user?.username}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-xs text-muted-foreground truncate">@{user?.username}</p>
+            {user?.role && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                {user.role}
+              </span>
+            )}
+          </div>
         </div>
         
         <button

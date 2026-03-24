@@ -11,4 +11,5 @@ export interface CreateClientRequest {
   phone?: string;
   address?: string;
   cedula?: string;
+  notes?: string;
 }
