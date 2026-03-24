@@ -155,7 +155,7 @@ export const CreateLoanBody = zod.object({
   amount: zod.number(),
   interestRate: zod.number(),
   installmentsCount: zod.number(),
-  startDate: zod.date(),
+  startDate: zod.string(),
   frequency: zod.enum(["daily", "weekly", "biweekly", "monthly"]),
 });
 
