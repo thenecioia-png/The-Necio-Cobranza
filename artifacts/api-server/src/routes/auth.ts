@@ -7,6 +7,7 @@ import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { Strategy as GitHubStrategy } from "passport-github2";
+import { OAuth2Client } from "google-auth-library";
 
 const router: IRouter = Router();
 
@@ -234,10 +235,55 @@ router.get("/github/callback",
 // Returns which OAuth providers are configured
 router.get("/oauth-providers", (_req, res) => {
   res.json({
-    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    google: !!(process.env.GOOGLE_CLIENT_ID),
     facebook: !!(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
     github: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
   });
+});
+
+// Returns Google Client ID for use with Google Identity Services (safe to expose)
+router.get("/google/client-id", (_req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    res.status(404).json({ clientId: null });
+    return;
+  }
+  res.json({ clientId });
+});
+
+// Verifies a Google ID token from the Sign in with Google button (no redirect needed)
+router.post("/google/verify", async (req, res) => {
+  const { credential } = req.body;
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+
+  if (!credential || !clientId) {
+    res.status(400).json({ error: "Credencial inválida" });
+    return;
+  }
+
+  try {
+    const client = new OAuth2Client(clientId);
+    const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.sub) {
+      res.status(401).json({ error: "Token inválido" });
+      return;
+    }
+
+    const user = await findOrCreateOAuthUser("google", payload.sub, {
+      name: payload.name || payload.email?.split("@")[0] || "Usuario",
+      email: payload.email,
+      avatarUrl: payload.picture,
+    });
+
+    (req.session as any).userId = user.id;
+
+    res.json({ user: mapUser(user), message: "Sesión iniciada con Google" });
+  } catch (err) {
+    console.error("Google verify error:", err);
+    res.status(401).json({ error: "No se pudo verificar la cuenta de Google" });
+  }
 });
 
 // --- Traditional auth ---

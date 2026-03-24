@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { GoogleSignInButton } from "@/components/google-sign-in";
 
 const API_BASE = "/api";
 
@@ -91,6 +92,9 @@ export function SocialLoginButtons() {
     return null;
   }
 
+  const nonGoogleProviders = activeProviders.filter(([p]) => p !== "google");
+  const hasGoogle = providers?.google;
+
   return (
     <div className="space-y-3">
       <div className="relative flex items-center gap-3">
@@ -100,7 +104,9 @@ export function SocialLoginButtons() {
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {activeProviders.map(([provider]) => {
+        {hasGoogle && <GoogleSignInButton />}
+
+        {nonGoogleProviders.map(([provider]) => {
           const cfg = PROVIDER_CONFIG[provider];
           const Icon = cfg.icon;
           return (

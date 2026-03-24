@@ -53,6 +53,7 @@ async function buildAll() {
       "passport-google-oauth20",
       "passport-facebook",
       "passport-github2",
+      "google-auth-library",
       "nodemailer",
       "handlebars",
       "knex",
