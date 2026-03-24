@@ -115,7 +115,7 @@ export default function ClientList() {
               <div className="flex items-start gap-3 mb-3">
                 <ClientAvatar
                   name={client.name}
-                  avatarUrl={(client as any).avatarUrl}
+                  avatarUrl={client.avatarUrl}
                   size="md"
                 />
                 <div className="flex-1 min-w-0">
@@ -149,9 +149,9 @@ export default function ClientList() {
                   <div className="text-xs text-muted-foreground">
                     Riesgo: <span className={cn("font-semibold", riskCfg.color)}>{riskCfg.label}</span>
                   </div>
-                  {(client as any).cobrador && (
+                  {client.cobrador && (
                     <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-lg font-semibold">
-                      👤 {(client as any).cobrador.name}
+                      👤 {client.cobrador.name}
                     </span>
                   )}
                 </div>

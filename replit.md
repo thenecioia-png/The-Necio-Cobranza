@@ -78,6 +78,9 @@ Key routes:
 - `POST /api/notifications/whatsapp/payment-confirmation`
 - `POST /api/notifications/whatsapp/payment-reminder`
 - `POST /api/notifications/whatsapp/bulk-reminders`
+- `GET /api/backup/settings`, `POST /api/backup/settings` — load/save backup config (email, frequency, smtp)
+- `POST /api/backup/send` — sends CSV backup via Gmail SMTP (nodemailer)
+- `GET /api/backup/download?type=clientes|prestamos|cuotas` — download CSV with UTF-8 BOM
 
 Lib helpers:
 - `src/lib/stripe.ts` — Replit connector-based Stripe client (`getUncachableStripeClient()`)
@@ -90,6 +93,7 @@ Database schema tables:
 - `clients` — id, name, phone, address, sector, ciudad, riskScore, businessId
 - `loans` — id, clientId, principal, interestRate, frequency, startDate, status
 - `installments` — id, loanId, clientId, dueDate, amount, status, paymentMethod, gpsLat, gpsLng, photoUrl, cobradorId, paidAt
+- `backup_settings` — id, businessId, email, frequency, enabled, lastSentAt, smtpUser, smtpPass
 
 Push schema: `pnpm --filter @workspace/db run push`
 
@@ -100,12 +104,18 @@ React frontend pages:
 - `/register` — Register (creates business + admin account)
 - `/dashboard` — KPI cards + recharts (cash flow area chart, payment method pie, top cobradores ranking)
 - `/today` — Daily collection route with GPS capture, photo upload, single/bulk pay, abono modal, offline banner
-- `/clients` — Client list with risk scoring
+- `/clients` — Client list with risk scoring, avatar photos (uses GetClientsResponseItem which now includes avatarUrl + cobrador)
 - `/clients/:id` — Client detail
 - `/clients/new` — Create client
 - `/loans/new` — Create loan
 - `/cobradores` — Cobrador management (admin only)
-- `/billing` — Subscription plan cards + WhatsApp notification management (admin only)
+- `/billing` — Subscription plan cards + WhatsApp notification management + Respaldo de Datos (admin only)
+
+Layout (`src/components/layout.tsx`):
+- `useIsDesktop()` hook detects viewport >= 768px
+- Mobile: renders hamburger top bar (h-14), sidebar hidden with aria-hidden when closed
+- Desktop: persistent sidebar (w-64), no hamburger
+- Sidebar opens via hamburger button (aria-label="Abrir menú"), closes via X or overlay tap
 
 Service worker at `public/sw.js`:
 - Caches GET API responses for offline use

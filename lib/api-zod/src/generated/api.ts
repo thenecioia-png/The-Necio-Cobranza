@@ -67,6 +67,8 @@ export const GetClientsResponseItem = zod.object({
   notes: zod.string().optional(),
   fiadorName: zod.string().optional(),
   fiadorPhone: zod.string().optional(),
+  avatarUrl: zod.string().nullable().optional(),
+  cobrador: zod.object({ id: zod.number(), name: zod.string() }).nullable().optional(),
   createdAt: zod.date(),
 });
 export const GetClientsResponse = zod.array(GetClientsResponseItem);

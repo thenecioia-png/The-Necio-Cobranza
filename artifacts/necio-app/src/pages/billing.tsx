@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CreditCard, CheckCircle2, Zap, Building2, Shield, ArrowRight, Loader2, X, Bell, MessageCircle, Send } from "lucide-react";
+import { CreditCard, CheckCircle2, Zap, Building2, Shield, ArrowRight, Loader2, X, Bell, MessageCircle, Send, Download, Mail, HardDrive, ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,16 @@ const PLAN_ICONS: Record<Plan, React.FC<{ className?: string }>> = {
   enterprise: Shield,
 };
 
+interface BackupSettings {
+  email: string;
+  frequency: string;
+  enabled: boolean;
+  smtpUser: string;
+  smtpPass: string;
+  smtpPassSet: boolean;
+  lastSentAt: string | null;
+}
+
 export default function Billing() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [plans, setPlans] = useState<Plans | null>(null);
@@ -61,6 +71,16 @@ export default function Billing() {
   const [whatsappStatus, setWhatsappStatus] = useState<{ configured: boolean; fromNumber: string | null } | null>(null);
   const [testPhone, setTestPhone] = useState("");
   const [testLoading, setTestLoading] = useState(false);
+
+  // Backup state
+  const [backup, setBackup] = useState<BackupSettings>({
+    email: "", frequency: "weekly", enabled: true,
+    smtpUser: "", smtpPass: "", smtpPassSet: false, lastSentAt: null,
+  });
+  const [backupSaving, setBackupSaving] = useState(false);
+  const [backupSending, setBackupSending] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -68,14 +88,76 @@ export default function Billing() {
       fetch(`${API_BASE}/stripe/subscription`, { credentials: "include" }).then(r => r.json()),
       fetch(`${API_BASE}/stripe/plans`).then(r => r.json()),
       fetch(`${API_BASE}/notifications/whatsapp/status`, { credentials: "include" }).then(r => r.json()),
-    ]).then(([sub, pl, ws]) => {
+      fetch(`${API_BASE}/backup/settings`, { credentials: "include" }).then(r => r.json()).catch(() => null),
+    ]).then(([sub, pl, ws, bk]) => {
       setSubscription(sub);
       setPlans(pl);
       setWhatsappStatus(ws);
+      if (bk) {
+        setBackup(prev => ({
+          ...prev,
+          email: bk.email ?? "",
+          frequency: bk.frequency ?? "weekly",
+          enabled: bk.enabled ?? true,
+          smtpUser: bk.smtpUser ?? "",
+          smtpPassSet: bk.smtpPassSet ?? false,
+          lastSentAt: bk.lastSentAt ?? null,
+        }));
+      }
     }).catch(() => {
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la información de facturación." });
     }).finally(() => setLoading(false));
   }, []);
+
+  const handleSaveBackup = async () => {
+    setBackupSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/backup/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: backup.email,
+          frequency: backup.frequency,
+          enabled: backup.enabled,
+          smtpUser: backup.smtpUser,
+          ...(backup.smtpPass ? { smtpPass: backup.smtpPass } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setBackup(prev => ({ ...prev, smtpPass: "", smtpPassSet: !!prev.smtpUser }));
+      toast({ title: "Configuración guardada", description: "Los ajustes de respaldo se guardaron correctamente." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    } finally {
+      setBackupSaving(false);
+    }
+  };
+
+  const handleSendBackup = async () => {
+    setBackupSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/backup/send`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const now = new Date().toLocaleString("es-DO");
+      setBackup(prev => ({ ...prev, lastSentAt: new Date().toISOString() }));
+      toast({ title: "Respaldo enviado", description: `El correo fue enviado exitosamente a ${backup.email}.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error al enviar", description: e.message });
+    } finally {
+      setBackupSending(false);
+    }
+  };
+
+  const handleDownload = (type: "clientes" | "prestamos" | "cuotas") => {
+    setDownloadOpen(false);
+    window.location.href = `${API_BASE}/backup/download?type=${type}`;
+  };
 
   const handleUpgrade = async (plan: Plan) => {
     if (plan === "basic") return;
@@ -375,6 +457,143 @@ export default function Billing() {
             </div>
           </div>
         )}
+      </motion.div>
+
+      {/* Backup section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="bg-card border border-border rounded-3xl p-6 mb-6"
+      >
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center shrink-0">
+            <HardDrive className="w-5 h-5 text-blue-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-display font-bold">Respaldo de Datos</h2>
+            <p className="text-sm text-muted-foreground">Exporta y envía tu cartera por correo electrónico</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setDownloadOpen(o => !o)}
+                className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl font-semibold text-sm transition-all"
+              >
+                <Download className="w-4 h-4" /> Descargar CSV <ChevronDown className="w-3 h-3" />
+              </button>
+              {downloadOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setDownloadOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-30 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden min-w-[180px]">
+                    {(["clientes", "prestamos", "cuotas"] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => handleDownload(t)}
+                        className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 text-foreground transition-colors capitalize"
+                      >
+                        {t === "prestamos" ? "Préstamos" : t === "cuotas" ? "Cuotas / Pagos" : "Clientes"}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Correo de destino
+              </label>
+              <input
+                type="email"
+                value={backup.email}
+                onChange={e => setBackup(p => ({ ...p, email: e.target.value }))}
+                placeholder="tu@gmail.com"
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Frecuencia
+              </label>
+              <select
+                value={backup.frequency}
+                onChange={e => setBackup(p => ({ ...p, frequency: e.target.value }))}
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              >
+                <option value="daily">Diario</option>
+                <option value="weekly">Semanal</option>
+                <option value="biweekly">Quincenal</option>
+                <option value="monthly">Mensual</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Gmail (remitente)
+              </label>
+              <input
+                type="email"
+                value={backup.smtpUser}
+                onChange={e => setBackup(p => ({ ...p, smtpUser: e.target.value }))}
+                placeholder="tu@gmail.com"
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                App Password de Gmail
+                {backup.smtpPassSet && !backup.smtpPass && (
+                  <span className="ml-2 text-emerald-400 normal-case font-normal">✓ Guardada</span>
+                )}
+              </label>
+              <input
+                type="password"
+                value={backup.smtpPass}
+                onChange={e => setBackup(p => ({ ...p, smtpPass: e.target.value }))}
+                placeholder={backup.smtpPassSet ? "••••••••••••••••" : "xxxx xxxx xxxx xxxx"}
+                className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Crea una App Password en <span className="text-blue-400">myaccount.google.com → Seguridad → Contraseñas de aplicaciones</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 border-t border-border/50">
+          <div>
+            {backup.lastSentAt && (
+              <p className="text-xs text-muted-foreground">
+                Último respaldo: <span className="text-foreground font-medium">{new Date(backup.lastSentAt).toLocaleString("es-DO")}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleSaveBackup}
+              disabled={backupSaving || !backup.email}
+              className="flex items-center gap-2 bg-background border border-border hover:border-primary/50 text-foreground px-4 py-2 rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
+            >
+              {backupSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Guardar configuración
+            </button>
+            <button
+              onClick={handleSendBackup}
+              disabled={backupSending || !backup.email}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all disabled:opacity-50 shadow-lg"
+            >
+              {backupSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+              Enviar respaldo ahora
+            </button>
+          </div>
+        </div>
       </motion.div>
 
       {/* Cancel confirmation modal */}
