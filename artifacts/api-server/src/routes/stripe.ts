@@ -6,14 +6,14 @@ import { eq } from "drizzle-orm";
 const router = Router();
 
 function requireAuth(req: any, res: any, next: any) {
-  if (!req.session?.user) return res.status(401).json({ error: "No autorizado" });
+  if (!req.session?.userId) return res.status(401).json({ error: "No autorizado" });
   next();
 }
 
 async function getBusinessId(req: any): Promise<number | null> {
-  const user = req.session?.user;
-  if (!user) return null;
-  const [u] = await db.select({ businessId: usersTable.businessId }).from(usersTable).where(eq(usersTable.id, user.id));
+  const userId = req.session?.userId;
+  if (!userId) return null;
+  const [u] = await db.select({ businessId: usersTable.businessId }).from(usersTable).where(eq(usersTable.id, userId));
   return u?.businessId ?? null;
 }
 
