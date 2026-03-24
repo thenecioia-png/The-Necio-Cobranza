@@ -9,12 +9,18 @@ function mapClient(c: typeof clientsTable.$inferSelect) {
   return {
     id: c.id,
     name: c.name,
+    apodo: c.apodo ?? undefined,
     phone: c.phone ?? undefined,
+    whatsapp: c.whatsapp ?? undefined,
     address: c.address ?? undefined,
+    sector: c.sector ?? undefined,
+    ciudad: c.ciudad ?? undefined,
     cedula: c.cedula ?? undefined,
     status: c.status as "active" | "delinquent" | "uncollectible",
     riskScore: c.riskScore,
     notes: c.notes ?? undefined,
+    fiadorName: c.fiadorName ?? undefined,
+    fiadorPhone: c.fiadorPhone ?? undefined,
     createdAt: c.createdAt.toISOString(),
   };
 }
@@ -33,10 +39,16 @@ router.post("/", async (req, res) => {
 
   const [client] = await db.insert(clientsTable).values({
     name: parsed.data.name,
+    apodo: parsed.data.apodo ?? null,
     phone: parsed.data.phone ?? null,
+    whatsapp: parsed.data.whatsapp ?? null,
     address: parsed.data.address ?? null,
+    sector: parsed.data.sector ?? null,
+    ciudad: parsed.data.ciudad ?? null,
     cedula: parsed.data.cedula ?? null,
     notes: parsed.data.notes ?? null,
+    fiadorName: parsed.data.fiadorName ?? null,
+    fiadorPhone: parsed.data.fiadorPhone ?? null,
     status: "active",
     riskScore: 50,
   }).returning();
@@ -69,8 +81,14 @@ router.patch("/:id", async (req, res) => {
   if (body.riskScore !== undefined) updates.riskScore = body.riskScore;
   if (body.notes !== undefined) updates.notes = body.notes;
   if (body.name !== undefined) updates.name = body.name;
+  if (body.apodo !== undefined) updates.apodo = body.apodo;
   if (body.phone !== undefined) updates.phone = body.phone;
+  if (body.whatsapp !== undefined) updates.whatsapp = body.whatsapp;
   if (body.address !== undefined) updates.address = body.address;
+  if (body.sector !== undefined) updates.sector = body.sector;
+  if (body.ciudad !== undefined) updates.ciudad = body.ciudad;
+  if (body.fiadorName !== undefined) updates.fiadorName = body.fiadorName;
+  if (body.fiadorPhone !== undefined) updates.fiadorPhone = body.fiadorPhone;
 
   const [updated] = await db
     .update(clientsTable)

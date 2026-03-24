@@ -36,10 +36,16 @@ export interface LoginResponse {
 
 export interface CreateClientRequest {
   name: string;
+  apodo?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
+  sector?: string;
+  ciudad?: string;
   cedula?: string;
   notes?: string;
+  fiadorName?: string;
+  fiadorPhone?: string;
 }
 
 export type UpdateClientRequestStatus =
@@ -56,8 +62,14 @@ export interface UpdateClientRequest {
   riskScore?: number;
   notes?: string;
   name?: string;
+  apodo?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
+  sector?: string;
+  ciudad?: string;
+  fiadorName?: string;
+  fiadorPhone?: string;
 }
 
 export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
@@ -71,12 +83,18 @@ export const ClientStatus = {
 export interface Client {
   id: number;
   name: string;
+  apodo?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
+  sector?: string;
+  ciudad?: string;
   cedula?: string;
   status: ClientStatus;
   riskScore: number;
   notes?: string;
+  fiadorName?: string;
+  fiadorPhone?: string;
   createdAt: string;
 }
 
@@ -124,12 +142,18 @@ export const ClientWithLoansStatus = {
 export interface ClientWithLoans {
   id: number;
   name: string;
+  apodo?: string;
   phone?: string;
+  whatsapp?: string;
   address?: string;
+  sector?: string;
+  ciudad?: string;
   cedula?: string;
   status: ClientWithLoansStatus;
   riskScore: number;
   notes?: string;
+  fiadorName?: string;
+  fiadorPhone?: string;
   createdAt: string;
   loans: LoanWithInstallments[];
 }

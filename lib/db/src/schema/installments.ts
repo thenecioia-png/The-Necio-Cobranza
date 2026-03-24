@@ -10,6 +10,7 @@ export const installmentsTable = pgTable("installments", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"),
   paidAt: timestamp("paid_at"),
+  paymentMethod: text("payment_method").default("efectivo"),
 });
 
 export const insertInstallmentSchema = createInsertSchema(installmentsTable).omit({ id: true });

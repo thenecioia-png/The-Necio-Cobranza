@@ -55,12 +55,18 @@ export const GetMeResponse = zod.object({
 export const GetClientsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
+  apodo: zod.string().optional(),
   phone: zod.string().optional(),
+  whatsapp: zod.string().optional(),
   address: zod.string().optional(),
+  sector: zod.string().optional(),
+  ciudad: zod.string().optional(),
   cedula: zod.string().optional(),
   status: zod.enum(["active", "delinquent", "uncollectible"]),
   riskScore: zod.number(),
   notes: zod.string().optional(),
+  fiadorName: zod.string().optional(),
+  fiadorPhone: zod.string().optional(),
   createdAt: zod.date(),
 });
 export const GetClientsResponse = zod.array(GetClientsResponseItem);
@@ -70,10 +76,16 @@ export const GetClientsResponse = zod.array(GetClientsResponseItem);
  */
 export const CreateClientBody = zod.object({
   name: zod.string(),
+  apodo: zod.string().optional(),
   phone: zod.string().optional(),
+  whatsapp: zod.string().optional(),
   address: zod.string().optional(),
+  sector: zod.string().optional(),
+  ciudad: zod.string().optional(),
   cedula: zod.string().optional(),
   notes: zod.string().optional(),
+  fiadorName: zod.string().optional(),
+  fiadorPhone: zod.string().optional(),
 });
 
 /**
@@ -88,8 +100,14 @@ export const UpdateClientBody = zod.object({
   riskScore: zod.number().optional(),
   notes: zod.string().optional(),
   name: zod.string().optional(),
+  apodo: zod.string().optional(),
   phone: zod.string().optional(),
+  whatsapp: zod.string().optional(),
   address: zod.string().optional(),
+  sector: zod.string().optional(),
+  ciudad: zod.string().optional(),
+  fiadorName: zod.string().optional(),
+  fiadorPhone: zod.string().optional(),
 });
 
 export const UpdateClientResponse = zod.object({
@@ -114,12 +132,18 @@ export const GetClientParams = zod.object({
 export const GetClientResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
+  apodo: zod.string().optional(),
   phone: zod.string().optional(),
+  whatsapp: zod.string().optional(),
   address: zod.string().optional(),
+  sector: zod.string().optional(),
+  ciudad: zod.string().optional(),
   cedula: zod.string().optional(),
   status: zod.enum(["active", "delinquent", "uncollectible"]),
   riskScore: zod.number(),
   notes: zod.string().optional(),
+  fiadorName: zod.string().optional(),
+  fiadorPhone: zod.string().optional(),
   createdAt: zod.date(),
   loans: zod.array(
     zod.object({

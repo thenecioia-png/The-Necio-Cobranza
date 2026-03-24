@@ -16,9 +16,13 @@ router.get("/today", async (req, res) => {
       amount: installmentsTable.amount,
       status: installmentsTable.status,
       paidAt: installmentsTable.paidAt,
+      paymentMethod: installmentsTable.paymentMethod,
       clientName: clientsTable.name,
       clientPhone: clientsTable.phone,
       clientId: clientsTable.id,
+      clientAddress: clientsTable.address,
+      clientSector: clientsTable.sector,
+      clientCiudad: clientsTable.ciudad,
       loanFrequency: loansTable.frequency,
     })
     .from(installmentsTable)
@@ -33,10 +37,14 @@ router.get("/today", async (req, res) => {
     dueDate: r.dueDate,
     amount: Number(r.amount),
     status: r.status,
+    paymentMethod: r.paymentMethod ?? "efectivo",
     paidAt: r.paidAt?.toISOString() ?? undefined,
     clientName: r.clientName,
     clientPhone: r.clientPhone ?? undefined,
     clientId: r.clientId,
+    clientAddress: r.clientAddress ?? undefined,
+    clientSector: r.clientSector ?? undefined,
+    clientCiudad: r.clientCiudad ?? undefined,
     loanFrequency: r.loanFrequency,
   })));
 });
@@ -61,9 +69,13 @@ router.post("/:id/pay", async (req, res) => {
     return;
   }
 
+  const paymentMethod = ["efectivo", "transferencia", "otro"].includes(req.body?.paymentMethod)
+    ? req.body.paymentMethod
+    : "efectivo";
+
   const [updated] = await db
     .update(installmentsTable)
-    .set({ status: "paid", paidAt: new Date() })
+    .set({ status: "paid", paidAt: new Date(), paymentMethod })
     .where(eq(installmentsTable.id, parsed.data.id))
     .returning();
 
@@ -73,6 +85,7 @@ router.post("/:id/pay", async (req, res) => {
     dueDate: updated.dueDate,
     amount: Number(updated.amount),
     status: updated.status,
+    paymentMethod: updated.paymentMethod ?? "efectivo",
     paidAt: updated.paidAt?.toISOString() ?? undefined,
   });
 });

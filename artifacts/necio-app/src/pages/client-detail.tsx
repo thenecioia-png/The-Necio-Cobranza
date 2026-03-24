@@ -4,7 +4,7 @@ import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQuery
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
-import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, Navigation } from "lucide-react";
 
 const STATUS_CONFIG = {
   active: { label: "Activo", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
@@ -82,6 +82,7 @@ export default function ClientDetail() {
             <div>
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-2xl font-display font-bold text-foreground">{client.name}</h1>
+                {client.apodo && <span className="text-muted-foreground text-base">"{client.apodo}"</span>}
                 <span className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", statusCfg.bg, statusCfg.color, statusCfg.border)}>
                   {statusCfg.label}
                 </span>
@@ -89,13 +90,38 @@ export default function ClientDetail() {
                   {riskCfg.label} ({client.riskScore}/100)
                 </span>
               </div>
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                {client.cedula && <span className="flex items-center gap-1.5"><User className="w-4 h-4" /> {client.cedula}</span>}
-                {client.phone && <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {client.phone}</span>}
-                {client.address && <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {client.address}</span>}
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2 text-sm text-muted-foreground">
+                {client.cedula && <span className="flex items-center gap-1.5"><User className="w-4 h-4 shrink-0" /> {client.cedula}</span>}
+                {client.phone && (
+                  <a href={`tel:${client.phone}`} className="flex items-center gap-1.5 hover:text-primary transition-colors">
+                    <Phone className="w-4 h-4 shrink-0" /> {client.phone}
+                  </a>
+                )}
+                {client.whatsapp && (
+                  <a href={`https://wa.me/${client.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors">
+                    <MessageCircle className="w-4 h-4 shrink-0" /> {client.whatsapp}
+                  </a>
+                )}
+                {(client.sector || client.ciudad || client.address) && (
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent([client.address, client.sector, client.ciudad].filter(Boolean).join(", "))}`}
+                    target="_blank" rel="noreferrer"
+                    className="flex items-center gap-1.5 hover:text-blue-400 transition-colors"
+                  >
+                    <MapPin className="w-4 h-4 shrink-0" />
+                    {[client.address, client.sector, client.ciudad].filter(Boolean).join(", ")}
+                  </a>
+                )}
               </div>
               {client.notes && (
                 <p className="mt-2 text-sm text-muted-foreground italic">📝 {client.notes}</p>
+              )}
+              {(client.fiadorName || client.fiadorPhone) && (
+                <div className="mt-2 flex items-center gap-2 text-sm">
+                  <Shield className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">Fiador: <span className="text-foreground font-medium">{client.fiadorName}</span>
+                  {client.fiadorPhone && <> · <a href={`tel:${client.fiadorPhone}`} className="hover:text-primary transition-colors">{client.fiadorPhone}</a></>}</span>
+                </div>
               )}
             </div>
           </div>

@@ -1,0 +1,66 @@
+
+╔══════════════════════════════════════════════════════════════════╗
+║              THE NECIO COBRANZA - ESPECIFICACIONES               ║
+║             Versión 1.1 - Soporte Bilingüe (ES/EN)               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+IDIOMAS SOPORTADOS
+──────────────────
+- Español (Dominicano/General)
+- Inglés (US/UK)
+- Selector de idioma en el perfil de usuario y pantalla de inicio.
+
+DESCRIPCIÓN GENERAL
+───────────────────
+App web de gestión de cobranza y cartera de clientes.
+Diseñada para cobradores, comerciantes y microfinanzas.
+Superior a "LA DIARIA" con multiusuario, fotos, GPS, contabilidad y suscripción mensual.
+
+═══════════════════════════════════════════════════════════════════
+ROLES Y PERMISOS
+═══════════════════════════════════════════════════════════════════
+
+1. SUPER ADMIN (Denison)
+   - Gestión global de la plataforma.
+   - Control de suscripciones y administradores.
+
+2. ADMINISTRADOR (Dueño de negocio)
+   - Gestión de sus propios cobradores y clientes.
+   - Reportes financieros de su empresa.
+
+3. COBRADOR (Empleado)
+   - Gestión de ruta diaria y registro de pagos.
+
+═══════════════════════════════════════════════════════════════════
+PLANES DE SUSCRIPCIÓN
+═══════════════════════════════════════════════════════════════════
+
+PLAN BÁSICO: Hasta 3 cobradores / 100 clientes.
+PLAN PRO (ILIMITADO): Cobradores y Clientes ILIMITADOS.
+
+═══════════════════════════════════════════════════════════════════
+REGISTRO DE CLIENTES (FICHA COMPLETA)
+═══════════════════════════════════════════════════════════════════
+
+- FOTOS: Perfil, Cédula Frontal, Cédula Trasera, Casa/Negocio.
+- DATOS: Nombre, Apodo, ID/Cédula, Teléfonos, WhatsApp.
+- UBICACIÓN: Dirección, Sector, Ciudad, GPS automático.
+- FIADOR: Nombre y teléfono de referencia.
+
+═══════════════════════════════════════════════════════════════════
+CRÉDITOS Y COBRANZA
+═══════════════════════════════════════════════════════════════════
+
+- FRECUENCIAS: Diaria, Semanal, Quincenal, Mensual.
+- PAGOS: Efectivo, Transferencia, Otros.
+- RECIBOS: Digitales con QR y comprobante fotográfico.
+- RUTA GPS: Pantalla "HOY" con navegación Google Maps.
+
+═══════════════════════════════════════════════════════════════════
+STACK TÉCNICO Y UI
+═══════════════════════════════════════════════════════════════════
+
+- Frontend: React + Tailwind CSS (i18next para idiomas).
+- Backend: Supabase (Postgres + Auth + Storage).
+- Pagos: Stripe.
+- UI: Dark Mode (Rojo/Dorado), Mobile First.
