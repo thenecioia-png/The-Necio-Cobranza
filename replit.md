@@ -3,6 +3,7 @@
 ## Overview
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Full-stack debt collection SaaS for the Dominican Republic — dark theme, red accents, Spanish UI.
 
 ## Stack
 
@@ -15,82 +16,142 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite + TailwindCSS + shadcn/ui
+- **Charts**: recharts (AreaChart, PieChart, BarChart)
+- **Animations**: framer-motion
+- **Payments**: Stripe (via Replit connector `conn_stripe_01KMG23FJ50CNTF9N7A6B36A18`)
+- **WhatsApp**: Twilio (pending setup — see notes below)
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
+├── artifacts/
+│   ├── api-server/         # Express API server
+│   └── necio-app/          # React frontend (Vite)
+├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
 
 ## TypeScript & Composite Projects
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+- **Always typecheck from the root** — run `pnpm run typecheck`
+- **`emitDeclarationOnly`** — actual JS bundling by esbuild/vite
+- **Project references** — A depends on B → A's tsconfig lists B in `references`
 
 ## Root Scripts
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `pnpm run build` — typecheck then recursively build all packages
+- `pnpm run typecheck` — `tsc --build --emitDeclarationOnly`
 
 ## Packages
 
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API. Routes in `src/routes/`. Auth via cookie-session (`necio_session`).
 
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
+Key routes:
+- `GET /api/health`
+- `POST /api/auth/login`, `POST /api/auth/register` (creates business + admin)
+- `GET /api/auth/me`
+- `GET /api/clients`, `POST /api/clients`
+- `GET /api/loans`, `POST /api/loans`
+- `GET /api/installments/today`, `POST /api/installments/:id/pay`
+- `POST /api/installments/pay-bulk`, `POST /api/installments/abono/:clientId`
+- `GET /api/dashboard/stats`, `GET /api/dashboard/cash-flow`
+- `GET /api/dashboard/top-cobradores`, `GET /api/dashboard/payment-methods`
+- `GET /api/cobradores`, `POST /api/cobradores`
+- `POST /api/storage/uploads/request-url`, `GET /api/storage/objects/*`
+- `GET /api/stripe/plans`, `GET /api/stripe/subscription`
+- `POST /api/stripe/create-checkout`, `POST /api/stripe/cancel`
+- `GET /api/notifications/whatsapp/status`
+- `POST /api/notifications/whatsapp/payment-confirmation`
+- `POST /api/notifications/whatsapp/payment-reminder`
+- `POST /api/notifications/whatsapp/bulk-reminders`
+
+Lib helpers:
+- `src/lib/stripe.ts` — Replit connector-based Stripe client (`getUncachableStripeClient()`)
 
 ### `lib/db` (`@workspace/db`)
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
+Database schema tables:
+- `businesses` — id, name, planType, stripeCustomerId, stripeSubscriptionId, subscriptionStatus
+- `users` — id, name, username, passwordHash, role, businessId
+- `clients` — id, name, phone, address, sector, ciudad, riskScore, businessId
+- `loans` — id, clientId, principal, interestRate, frequency, startDate, status
+- `installments` — id, loanId, clientId, dueDate, amount, status, paymentMethod, gpsLat, gpsLng, photoUrl, cobradorId, paidAt
 
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
+Push schema: `pnpm --filter @workspace/db run push`
 
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+### `artifacts/necio-app` (`@workspace/necio-app`)
+
+React frontend pages:
+- `/` — Login
+- `/register` — Register (creates business + admin account)
+- `/dashboard` — KPI cards + recharts (cash flow area chart, payment method pie, top cobradores ranking)
+- `/today` — Daily collection route with GPS capture, photo upload, single/bulk pay, abono modal, offline banner
+- `/clients` — Client list with risk scoring
+- `/clients/:id` — Client detail
+- `/clients/new` — Create client
+- `/loans/new` — Create loan
+- `/cobradores` — Cobrador management (admin only)
+- `/billing` — Subscription plan cards + WhatsApp notification management (admin only)
+
+Service worker at `public/sw.js`:
+- Caches GET API responses for offline use
+- Queues payment POSTs in IndexedDB when offline
+- Syncs on reconnect (SYNC_NOW message, BackgroundSync tag)
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
+OpenAPI 3.1 spec. Run codegen: `pnpm --filter @workspace/api-spec run codegen`
 
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
+## Auth
 
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
+- Cookie session: `necio_session`, SHA-256 password hash
+- Default admin: username `admin`, password `admin123`
+- Roles: `admin` (full access), `cobrador` (only sees today route)
+- Multi-tenancy: every query filtered by `businessId` from session user
 
-### `lib/api-zod` (`@workspace/api-zod`)
+## Object Storage
 
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
+- Bucket: `replit-objstore-8fe8e2d1-345e-4d2e-ab74-3bfc5af1e965`
+- Flow: `POST /api/storage/uploads/request-url` → PUT to GCS → save `objectPath` in DB
+- Serve: `GET /api/storage/objects/{path}`
 
-### `lib/api-client-react` (`@workspace/api-client-react`)
+## Integrations
 
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
+### Stripe ✅ Connected
+- Replit connector: `conn_stripe_01KMG23FJ50CNTF9N7A6B36A18`
+- Client via `getUncachableStripeClient()` in `src/lib/stripe.ts`
+- Plans: Basic (free, 50 clients), Pro ($29/mo, unlimited), Enterprise ($99/mo)
+- Webhooks: `/api/stripe/webhook`
 
-### `scripts` (`@workspace/scripts`)
+### Twilio / WhatsApp ⚠️ NOT YET CONNECTED
+- User dismissed the Replit Twilio integration flow.
+- To enable WhatsApp notifications, either:
+  1. Connect via Replit integration: connector ID `ccfg_twilio_01K69QJTED9YTJFE2SJ7E4SY08`
+  2. Or provide `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_WHATSAPP_FROM` as env secrets
+- Backend routes are fully implemented in `src/routes/notifications.ts`
+- UI is on the `/billing` page, shows status and falls back gracefully if not configured
 
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+## Frequency Enum
+
+`"daily"` | `"weekly"` | `"biweekly"` | `"monthly"` (English values in DB)
+
+## UI Conventions
+
+- Language: Spanish
+- Currency: `formatRD()` in `artifacts/necio-app/src/lib/utils.ts`
+- Theme: Dark with red accent (`--primary: 225 29 72`)
+- Font: `font-display` (Rajdhani) for headings
