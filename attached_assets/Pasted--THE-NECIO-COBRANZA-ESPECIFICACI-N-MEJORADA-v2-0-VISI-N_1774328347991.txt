@@ -1,0 +1,173 @@
+🚀 THE NECIO COBRANZA – ESPECIFICACIÓN MEJORADA (v2.0)
+🌍 VISIÓN DEL PRODUCTO
+
+Plataforma SaaS de cobranza inteligente para microfinanzas, comercios y prestamistas informales en Latinoamérica.
+
+Objetivo:
+Reducir mora, aumentar control financiero y digitalizar el proceso completo de crédito y cobro.
+
+🧠 DIFERENCIAL CLAVE (TU VENTA FUERTE)
+
+Esto es lo que te va a hacer superior a “La Diaria”:
+
+📍 Cobranza con GPS en tiempo real
+📸 Evidencia fotográfica obligatoria
+🤖 Alertas automáticas de mora
+📊 Dashboard financiero inteligente
+🔐 Multiusuario con control granular
+💰 Sistema SaaS con ingresos recurrentes
+
+👉 Esto conviértelo luego en tu pitch.
+
+👥 ROLES (MEJORADOS)
+1. SUPER ADMIN
+Gestión global (usuarios, empresas, pagos)
+Dashboard global (MRR, usuarios activos, churn)
+Suspensión automática por falta de pago
+2. ADMIN (Dueño)
+Crear cobradores
+Crear clientes
+Asignar rutas
+Ver reportes financieros
+Configurar reglas de negocio
+3. COBRADOR
+Ver ruta del día
+Registrar pagos
+Subir fotos
+Ver historial de clientes
+🔥 NUEVO (RECOMENDADO):
+4. CONTADOR / VISOR
+Solo lectura
+Acceso a reportes financieros
+💳 PLANES (MEJORADOS)
+Plan	Precio sugerido	Límites
+Básico	$10–$15 USD	3 cobradores / 100 clientes
+Pro	$25–$40 USD	Ilimitado
+Enterprise	Custom	Multiempresa + API
+
+👉 Agrega:
+
+7 días gratis (trial)
+Bloqueo automático por falta de pago
+👤 CLIENTES (MEJORADO)
+📸 DOCUMENTACIÓN (BIEN)
+Foto perfil
+Cédula (frontal/trasera)
+Foto casa/negocio
+🔥 AGREGAR:
+Score de riesgo (manual o automático)
+Estado del cliente:
+Activo
+Moroso
+Incobrable
+💸 SISTEMA DE CRÉDITO (CLAVE)
+
+Aquí te faltaba MUCHO — esto es crítico:
+
+Datos del préstamo:
+Monto prestado
+Interés (%)
+Total a pagar
+Número de cuotas
+Fecha inicio
+Fecha fin
+🔥 AUTOMÁTICO:
+Generación de calendario de pagos
+Cálculo de mora
+Balance restante en tiempo real
+📅 COBRANZA (MEJORADA)
+Pantalla “HOY”
+Lista de clientes por cobrar
+Orden por ruta (GPS)
+Botón rápido de cobro
+Registro de pago:
+Monto pagado
+Método (efectivo, transferencia)
+Foto (opcional o obligatoria)
+Ubicación GPS automática
+🧾 RECIBOS (MEJORADOS)
+Código QR verificable
+Descarga PDF
+Envío por WhatsApp automático
+
+👉 Esto es CLAVE en RD.
+
+🗺️ RUTAS INTELIGENTES (UPGRADE PRO)
+Optimización automática de ruta
+Integración con Google Maps
+Tracking en tiempo real del cobrador
+🔔 NOTIFICACIONES (MUY IMPORTANTE)
+Para ADMIN:
+Cliente en mora
+Pago recibido
+Ruta incompleta
+Para CLIENTE (futuro):
+Recordatorio de pago (WhatsApp/SMS)
+📊 DASHBOARD (MEJORADO)
+KPIs:
+Total prestado
+Total cobrado
+Dinero en la calle
+% de mora
+Cobros del día
+🔐 SEGURIDAD (AGREGAR SÍ O SÍ)
+Roles con permisos (RBAC)
+Encriptación de datos
+Backup automático
+Auditoría de acciones (log)
+⚙️ STACK TÉCNICO (MEJORADO)
+Frontend
+React + Tailwind
+i18next (bien)
+PWA (🔥 importante para móviles sin app)
+Backend
+Supabase
+Auth
+PostgreSQL
+Storage (fotos)
+Pagos
+Stripe
+🔥 AGREGAR:
+Edge Functions (para lógica de negocio)
+Row Level Security (multiempresa seguro)
+📱 UX/UI (MEJORADO)
+Modo oscuro (bien)
+Botones grandes (uso en calle)
+Flujo rápido (máx 2 taps para cobrar)
+Offline mode (🔥 CRÍTICO)
+💡 FUNCIONALIDADES PRO QUE TE HARÁN LÍDER
+
+Estas son las que te separan de todos:
+
+1. 📴 MODO OFFLINE
+Guardar cobros sin internet
+Sync automático luego
+2. 📍 TRACKING DEL COBRADOR
+Ver ruta en vivo
+3. 📊 SCORE DE CLIENTE
+Basado en historial de pago
+4. 🤖 ALERTAS INTELIGENTES
+“Este cliente probablemente no pagará”
+🧱 ARQUITECTURA SUGERIDA
+Multi-tenant (cada negocio separado)
+API REST o GraphQL
+Webhooks (Stripe)
+Storage estructurado por empresa
+🧨 ERRORES QUE DEBES EVITAR
+
+Te los digo directo:
+
+❌ No incluir sistema de mora
+❌ No tener modo offline
+❌ No controlar permisos bien
+❌ No automatizar calendario de pagos
+❌ No hacer la app ultra simple
+🧭 SIGUIENTE PASO
+
+Si quieres, puedo ayudarte con:
+
+✅ Diseño de base de datos (Supabase listo)
+✅ Wireframes de la app
+✅ Código inicial (React + Supabase)
+✅ Estrategia para vender en RD
+✅ Pitch deck para inversionistas
