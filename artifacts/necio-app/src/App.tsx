@@ -1,0 +1,60 @@
+import { Switch, Route, Router as WouterRouter } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+
+import Login from "./pages/login";
+import Dashboard from "./pages/dashboard";
+import TodayInstallments from "./pages/today";
+import ClientList from "./pages/client-list";
+import ClientDetail from "./pages/client-detail";
+import ClientCreate from "./pages/client-create";
+import LoanCreate from "./pages/loan-create";
+import { AuthGuard } from "./components/layout";
+
+const queryClient = new QueryClient();
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Login} />
+      
+      <Route path="/dashboard">
+        <AuthGuard><Dashboard /></AuthGuard>
+      </Route>
+      <Route path="/today">
+        <AuthGuard><TodayInstallments /></AuthGuard>
+      </Route>
+      <Route path="/clients">
+        <AuthGuard><ClientList /></AuthGuard>
+      </Route>
+      <Route path="/clients/new">
+        <AuthGuard><ClientCreate /></AuthGuard>
+      </Route>
+      <Route path="/clients/:id">
+        <AuthGuard><ClientDetail /></AuthGuard>
+      </Route>
+      <Route path="/loans/new">
+        <AuthGuard><LoanCreate /></AuthGuard>
+      </Route>
+
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;

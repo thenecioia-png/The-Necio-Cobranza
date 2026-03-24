@@ -1,0 +1,19 @@
+packages:
+  "framer-motion": "For premium page transitions and staggered list animations"
+  "date-fns": "For date formatting"
+  "@hookform/resolvers": "For Zod form validation"
+  "react-hook-form": "For robust form state management"
+  "clsx": "For classname merging"
+  "tailwind-merge": "For classname merging"
+
+images:
+  - path: "artifacts/necio-app/public/images/logo.png"
+    description: "Minimal sharp geometric logo mark for a debt collection agency, abstract, bold crimson red and dark grey, transparent background"
+    aspect_ratio: "1:1"
+  - path: "artifacts/necio-app/public/images/login-bg.png"
+    description: "Abstract extremely dark background with deep shadows and subtle bold crimson red neon light streaks, professional, intense, high quality 4k"
+    aspect_ratio: "16:9"
+
+notes:
+  - Assume API endpoints exist as defined in the OpenAPI spec.
+  - Orval generated hooks wrap mutation bodies in `{ data: payload }`.

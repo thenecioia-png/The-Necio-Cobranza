@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: The Necio Cobranza API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: clients
+    description: Client management
+  - name: loans
+    description: Loan management
+  - name: installments
+    description: Installment management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,193 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clients:
+    get:
+      operationId: getClients
+      tags: [clients]
+      summary: Get all clients
+      responses:
+        "200":
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create a new client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClientRequest"
+      responses:
+        "201":
+          description: Client created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get a client by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientWithLoans"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /loans:
+    post:
+      operationId: createLoan
+      tags: [loans]
+      summary: Create a new loan for a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLoanRequest"
+      responses:
+        "201":
+          description: Loan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Loan"
+
+  /installments/today:
+    get:
+      operationId: getTodayInstallments
+      tags: [installments]
+      summary: Get all installments due today
+      responses:
+        "200":
+          description: Today's installments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InstallmentWithClient"
+
+  /installments/{id}/pay:
+    post:
+      operationId: payInstallment
+      tags: [installments]
+      summary: Mark an installment as paid
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Installment paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Installment"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [installments]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +227,293 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - username
+        - name
+
+    CreateClientRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        cedula:
+          type: string
+      required:
+        - name
+
+    Client:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        cedula:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - createdAt
+
+    ClientWithLoans:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        cedula:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        loans:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoanWithInstallments"
+      required:
+        - id
+        - name
+        - createdAt
+        - loans
+
+    CreateLoanRequest:
+      type: object
+      properties:
+        clientId:
+          type: integer
+        amount:
+          type: number
+        interestRate:
+          type: number
+        installmentsCount:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        frequency:
+          type: string
+          enum: [daily, weekly, biweekly, monthly]
+      required:
+        - clientId
+        - amount
+        - interestRate
+        - installmentsCount
+        - startDate
+        - frequency
+
+    Loan:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        amount:
+          type: number
+        interestRate:
+          type: number
+        installmentsCount:
+          type: integer
+        startDate:
+          type: string
+        frequency:
+          type: string
+        totalAmount:
+          type: number
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - clientId
+        - amount
+        - interestRate
+        - installmentsCount
+        - startDate
+        - frequency
+        - totalAmount
+        - status
+        - createdAt
+
+    LoanWithInstallments:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        amount:
+          type: number
+        interestRate:
+          type: number
+        installmentsCount:
+          type: integer
+        startDate:
+          type: string
+        frequency:
+          type: string
+        totalAmount:
+          type: number
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        installments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Installment"
+      required:
+        - id
+        - clientId
+        - amount
+        - interestRate
+        - installmentsCount
+        - startDate
+        - frequency
+        - totalAmount
+        - status
+        - createdAt
+        - installments
+
+    Installment:
+      type: object
+      properties:
+        id:
+          type: integer
+        loanId:
+          type: integer
+        dueDate:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, paid, late]
+        paidAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - loanId
+        - dueDate
+        - amount
+        - status
+
+    InstallmentWithClient:
+      type: object
+      properties:
+        id:
+          type: integer
+        loanId:
+          type: integer
+        dueDate:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, paid, late]
+        paidAt:
+          type: string
+          format: date-time
+        clientName:
+          type: string
+        clientPhone:
+          type: string
+        loanFrequency:
+          type: string
+      required:
+        - id
+        - loanId
+        - dueDate
+        - amount
+        - status
+        - clientName
+        - loanFrequency
+
+    DashboardStats:
+      type: object
+      properties:
+        totalClients:
+          type: integer
+        todayCollected:
+          type: number
+        todayPending:
+          type: number
+        todayTotal:
+          type: number
+        activeLoans:
+          type: integer
+      required:
+        - totalClients
+        - todayCollected
+        - todayPending
+        - todayTotal
+        - activeLoans

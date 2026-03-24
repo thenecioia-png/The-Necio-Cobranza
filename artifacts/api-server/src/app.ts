@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import cookieSession from "cookie-session";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -25,9 +26,19 @@ app.use(
     },
   }),
 );
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(
+  cookieSession({
+    name: "necio_session",
+    secret: process.env.SESSION_SECRET || "necio-secret-key-2024",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    sameSite: "lax",
+    httpOnly: true,
+  })
+);
 
 app.use("/api", router);
 

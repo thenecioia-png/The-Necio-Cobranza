@@ -1,0 +1,168 @@
+// ===============================
+// THE NECIO COBRANZA - STARTER APP
+// React + Supabase + Tailwind
+// ===============================
+
+// 1. INSTALAR DEPENDENCIAS
+// npm create vite@latest necio-app
+// cd necio-app
+// npm install
+// npm install @supabase/supabase-js react-router-dom
+// npm install tailwindcss
+
+// ===============================
+// 2. SUPABASE CONFIG
+// ===============================
+
+// src/lib/supabase.js
+import { createClient } from '@supabase/supabase-js'
+
+export const supabase = createClient(
+  "https://TU_URL.supabase.co",
+  "TU_ANON_KEY"
+)
+
+// ===============================
+// 3. APP ROUTER
+// ===============================
+
+// src/App.jsx
+import { BrowserRouter, Routes, Route } from "react-router-dom"
+import Login from "./pages/Login"
+import Dashboard from "./pages/Dashboard"
+import Today from "./pages/Today"
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/today" element={<Today />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
+// ===============================
+// 4. LOGIN
+// ===============================
+
+// src/pages/Login.jsx
+import { useState } from "react"
+import { supabase } from "../lib/supabase"
+
+export default function Login() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+
+  const login = async () => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+
+    if (error) alert(error.message)
+    else window.location.href = "/dashboard"
+  }
+
+  return (
+    <div className="h-screen flex items-center justify-center bg-black text-white">
+      <div className="bg-gray-900 p-6 rounded-xl w-80">
+        <h1 className="text-xl mb-4">THE NECIO</h1>
+
+        <input
+          placeholder="Correo"
+          className="w-full mb-2 p-2 text-black"
+          onChange={(e)=>setEmail(e.target.value)}
+        />
+
+        <input
+          type="password"
+          placeholder="Contraseña"
+          className="w-full mb-4 p-2 text-black"
+          onChange={(e)=>setPassword(e.target.value)}
+        />
+
+        <button onClick={login} className="w-full bg-red-600 p-2 rounded">
+          Entrar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ===============================
+// 5. DASHBOARD
+// ===============================
+
+// src/pages/Dashboard.jsx
+import { useEffect, useState } from "react"
+import { supabase } from "../lib/supabase"
+
+export default function Dashboard() {
+  const [clients, setClients] = useState([])
+
+  useEffect(()=>{
+    load()
+  },[])
+
+  const load = async () => {
+    const { data } = await supabase.from("clients").select("*")
+    setClients(data || [])
+  }
+
+  return (
+    <div className="p-4 bg-black text-white min-h-screen">
+      <h1 className="text-2xl mb-4">Dashboard</h1>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-800 p-4 rounded">Clientes: {clients.length}</div>
+        <div className="bg-gray-800 p-4 rounded">Cobros hoy: RD$0</div>
+      </div>
+    </div>
+  )
+}
+
+// ===============================
+// 6. PANTALLA HOY
+// ===============================
+
+// src/pages/Today.jsx
+export default function Today() {
+  return (
+    <div className="p-4 bg-black text-white min-h-screen">
+      <h1 className="text-xl mb-4">Cobros de Hoy</h1>
+
+      <div className="bg-gray-800 p-4 rounded">
+        <p>Juan Pérez</p>
+        <p>RD$200</p>
+        <button className="bg-green-600 mt-2 p-2 rounded">Cobrar</button>
+      </div>
+    </div>
+  )
+}
+
+// ===============================
+// 7. GENERAR CUOTAS
+// ===============================
+
+// src/utils/generateInstallments.js
+export function generateInstallments(loan) {
+  const total = loan.amount + (loan.amount * loan.interest_rate / 100)
+  const per = total / loan.installments_count
+
+  let date = new Date(loan.start_date)
+  const arr = []
+
+  for (let i=0;i<loan.installments_count;i++){
+    arr.push({ due_date: new Date(date), amount: per })
+    date.setDate(date.getDate()+1)
+  }
+
+  return arr
+}
+
+// ===============================
+// LISTO PARA INICIAR 🚀
+// ===============================
