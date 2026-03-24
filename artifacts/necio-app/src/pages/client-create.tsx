@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,7 +6,7 @@ import { z } from "zod";
 import { useCreateClient, getGetClientsQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, UserPlus, Loader2, User, Phone, MapPin, Shield } from "lucide-react";
+import { ArrowLeft, UserPlus, Loader2, User, Phone, MapPin, Shield, Navigation, ExternalLink, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { ClientAvatarUpload } from "@/components/client-avatar";
 
@@ -67,12 +67,39 @@ export default function ClientCreate() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: "", apodo: "", cedula: "", phone: "", whatsapp: "", address: "", sector: "", ciudad: "", notes: "", fiadorName: "", fiadorPhone: "" }
   });
 
   const nameValue = watch("name") || "Cliente";
+
+  const captureGps = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGpsError("Tu dispositivo no soporta GPS");
+      return;
+    }
+    setGpsLoading(true);
+    setGpsError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setGpsCoords({ lat, lng });
+        setValue("address", `${lat.toFixed(6)},${lng.toFixed(6)}`);
+        setGpsLoading(false);
+      },
+      (err) => {
+        setGpsError("No se pudo obtener la ubicación. Verifica los permisos.");
+        setGpsLoading(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  }, [setValue]);
 
   const handleAvatarSelected = (file: File) => {
     setAvatarFile(file);
@@ -215,8 +242,48 @@ export default function ClientCreate() {
                 <FieldInput {...register("ciudad")} placeholder="Ej. Santo Domingo, Santiago..." />
               </div>
               <div className="md:col-span-2">
-                <FieldLabel>Dirección exacta</FieldLabel>
-                <FieldInput {...register("address")} placeholder="Calle, número, referencias para llegar..." />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Dirección / Coordenadas GPS
+                  </label>
+                  <button
+                    type="button"
+                    onClick={captureGps}
+                    disabled={gpsLoading}
+                    className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500/20 transition-all disabled:opacity-50"
+                  >
+                    {gpsLoading
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Obteniendo GPS...</>
+                      : gpsCoords
+                      ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">GPS capturado</span></>
+                      : <><Navigation className="w-3.5 h-3.5" /> Capturar GPS</>
+                    }
+                  </button>
+                </div>
+                <FieldInput
+                  {...register("address")}
+                  placeholder="Calle, número, referencias... o usa el GPS →"
+                />
+                {gpsError && (
+                  <p className="text-amber-500 text-xs mt-1.5 flex items-center gap-1">
+                    ⚠️ {gpsError}
+                  </p>
+                )}
+                {gpsCoords && (
+                  <div className="mt-2 flex items-center gap-3 flex-wrap">
+                    <span className="text-xs text-emerald-400 font-mono bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                      📍 {gpsCoords.lat.toFixed(6)}, {gpsCoords.lng.toFixed(6)}
+                    </span>
+                    <a
+                      href={`https://maps.google.com/?q=${gpsCoords.lat},${gpsCoords.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors font-semibold"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Ver en Google Maps
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           </section>
