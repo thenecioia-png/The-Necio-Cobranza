@@ -120,6 +120,31 @@ router.post("/:id/pay", async (req, res) => {
     .where(eq(installmentsTable.id, parsed.data.id))
     .returning();
 
+  // Send WhatsApp confirmation asynchronously (fire & forget)
+  const twilioClient = (req as any).twilioClient;
+  const fromNumber = process.env.TWILIO_WHATSAPP_FROM;
+  if (twilioClient && fromNumber) {
+    db.select({
+      clientName: clientsTable.name,
+      clientPhone: clientsTable.phone,
+      clientWhatsapp: clientsTable.whatsapp,
+    })
+    .from(loansTable)
+    .innerJoin(clientsTable, eq(loansTable.clientId, clientsTable.id))
+    .where(eq(loansTable.id, updated.loanId))
+    .limit(1)
+    .then(([client]) => {
+      const phone = client?.clientWhatsapp || client?.clientPhone;
+      if (!phone || !client) return;
+      const cleaned = phone.replace(/\D/g, "");
+      const e164 = cleaned.length === 10 ? `+1${cleaned}` : cleaned.length === 11 && cleaned.startsWith("1") ? `+${cleaned}` : `+${cleaned}`;
+      const amount = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(updated.amount);
+      const msg = `✅ *Pago Confirmado*\n\nHola ${client.clientName},\n\nRegistramos tu pago de *${amount}* para la cuota del ${new Date(updated.dueDate).toLocaleDateString("es-DO")}.\n\n¡Gracias! 🙌\n\n_The Necio Cobranza_`;
+      const from = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
+      twilioClient.messages.create({ from, to: `whatsapp:${e164}`, body: msg }).catch(() => {});
+    }).catch(() => {});
+  }
+
   res.json({
     id: updated.id,
     loanId: updated.loanId,

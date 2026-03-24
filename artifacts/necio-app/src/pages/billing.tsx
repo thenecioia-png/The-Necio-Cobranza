@@ -122,7 +122,6 @@ export default function Billing() {
   };
 
   const handleTestWhatsApp = async () => {
-    if (!testPhone) return;
     setTestLoading(true);
     try {
       const res = await fetch(`${API_BASE}/notifications/whatsapp/bulk-reminders`, {
@@ -131,7 +130,12 @@ export default function Billing() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error || data.message);
-      toast({ title: "WhatsApp", description: `${data.sent} recordatorio(s) enviados.` });
+      toast({
+        title: "✅ WhatsApp enviado",
+        description: data.total === 0
+          ? "No hay cuotas para mañana."
+          : `${data.sent} recordatorio(s) enviados de ${data.total} cuotas de mañana.`,
+      });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error WhatsApp", description: e.message });
     } finally {
@@ -312,25 +316,55 @@ export default function Billing() {
 
         {whatsappStatus?.configured ? (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Twilio está conectado. Número de salida: <span className="font-mono text-foreground">{whatsappStatus.fromNumber}</span>
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={handleTestWhatsApp}
-                disabled={testLoading}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
-              >
-                {testLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Enviar recordatorios de mañana
-              </button>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-muted-foreground">
+                  Twilio activo · Número de salida:{" "}
+                  <span className="font-mono text-emerald-400 font-semibold">{whatsappStatus.fromNumber}</span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Los mensajes se envían como WhatsApp Business vía Twilio.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="bg-background rounded-2xl border border-border p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Recordatorios automáticos</p>
+                <p className="text-sm text-muted-foreground mb-3">Envía recordatorio a todos los clientes con cuota para mañana.</p>
+                <button
+                  onClick={handleTestWhatsApp}
+                  disabled={testLoading}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
+                >
+                  {testLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Enviar recordatorios de mañana
+                </button>
+              </div>
+
+              <div className="bg-background rounded-2xl border border-border p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Funciones activas</p>
+                <div className="space-y-1.5">
+                  {["✓ Confirmación automática al cobrar", "✓ Recordatorio día anterior al vencimiento", "✓ Envío masivo manual"].map(f => (
+                    <p key={f} className="text-sm text-emerald-400 font-medium">{f}</p>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Conecta tu cuenta de Twilio para enviar notificaciones WhatsApp automáticas a tus clientes: recordatorios antes del vencimiento y confirmaciones de pago.
+              Twilio aún no está configurado correctamente. Verifica que los siguientes secretos estén activos en el proyecto:
             </p>
+            <div className="bg-background rounded-2xl border border-border p-4 space-y-2 font-mono text-xs">
+              {["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"].map(k => (
+                <div key={k} className="flex items-center gap-2">
+                  <span className="text-amber-500">⚠</span>
+                  <span className="text-muted-foreground">{k}</span>
+                </div>
+              ))}
+            </div>
             <div className="flex flex-col gap-2 text-sm text-muted-foreground">
               {["Recordatorios de cuotas próximas", "Confirmaciones de pago al cobrar", "Envío masivo de recordatorios"].map(f => (
                 <div key={f} className="flex items-center gap-2">
@@ -339,9 +373,6 @@ export default function Billing() {
                 </div>
               ))}
             </div>
-            <p className="text-sm text-amber-400 font-medium mt-2">
-              → Requiere configuración de Twilio vía la integración de Replit.
-            </p>
           </div>
         )}
       </motion.div>

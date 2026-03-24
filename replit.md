@@ -20,7 +20,7 @@ Full-stack debt collection SaaS for the Dominican Republic — dark theme, red a
 - **Charts**: recharts (AreaChart, PieChart, BarChart)
 - **Animations**: framer-motion
 - **Payments**: Stripe (via Replit connector `conn_stripe_01KMG23FJ50CNTF9N7A6B36A18`)
-- **WhatsApp**: Twilio (pending setup — see notes below)
+- **WhatsApp**: Twilio — ACTIVO. Secretos configurados: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`. El middleware inyecta el cliente en cada request. Confirmación automática al cobrar una cuota. Recordatorios masivos desde `/billing`.
 
 ## Structure
 
