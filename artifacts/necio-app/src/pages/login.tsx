@@ -115,6 +115,18 @@ export default function Login() {
             )}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-muted-foreground text-sm">
+            ¿No tienes cuenta?{" "}
+            <button
+              onClick={() => setLocation("/register")}
+              className="text-primary hover:text-rose-400 font-semibold transition-colors underline underline-offset-2"
+            >
+              Registrarse
+            </button>
+          </p>
+        </div>
       </motion.div>
     </div>
   );

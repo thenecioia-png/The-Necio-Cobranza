@@ -16,6 +16,38 @@ declare module "express-serve-static-core" {
   }
 }
 
+router.post("/register", async (req, res) => {
+  const { username, password, name } = req.body;
+  if (!username || !password || !name) {
+    res.status(400).json({ error: "Todos los campos son requeridos" });
+    return;
+  }
+
+  const existing = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.username, username))
+    .limit(1);
+
+  if (existing.length > 0) {
+    res.status(409).json({ error: "El usuario ya existe" });
+    return;
+  }
+
+  const [user] = await db.insert(usersTable).values({
+    username,
+    passwordHash: hashPassword(password),
+    name,
+  }).returning();
+
+  (req.session as any).userId = user.id;
+
+  res.status(201).json({
+    user: { id: user.id, username: user.username, name: user.name },
+    message: "Cuenta creada exitosamente"
+  });
+});
+
 router.post("/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {

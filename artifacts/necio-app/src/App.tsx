@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
 import Login from "./pages/login";
+import Register from "./pages/register";
 import Dashboard from "./pages/dashboard";
 import TodayInstallments from "./pages/today";
 import ClientList from "./pages/client-list";
@@ -19,7 +20,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Login} />
-      
+      <Route path="/register" component={Register} />
+
       <Route path="/dashboard">
         <AuthGuard><Dashboard /></AuthGuard>
       </Route>
