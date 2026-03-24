@@ -1,9 +1,16 @@
 import { Router, type IRouter } from "express";
 import { db, clientsTable, loansTable, installmentsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { CreateClientBody, GetClientParams, UpdateClientBody, UpdateClientParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+async function getBusinessId(req: any): Promise<number | null> {
+  const userId = req.session?.userId;
+  if (!userId) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return user?.businessId ?? null;
+}
 
 function mapClient(c: typeof clientsTable.$inferSelect, cobrador?: { id: number; name: string } | null) {
   return {
@@ -23,11 +30,16 @@ function mapClient(c: typeof clientsTable.$inferSelect, cobrador?: { id: number;
     fiadorPhone: c.fiadorPhone ?? undefined,
     cobradorId: c.cobradorId ?? undefined,
     cobrador: cobrador ?? undefined,
+    gpsLat: c.gpsLat ?? undefined,
+    gpsLng: c.gpsLng ?? undefined,
     createdAt: c.createdAt.toISOString(),
   };
 }
 
 router.get("/", async (req, res) => {
+  const bizId = await getBusinessId(req);
+  const whereClause = bizId !== null ? eq(clientsTable.businessId, bizId) : undefined;
+
   const rows = await db
     .select({
       client: clientsTable,
@@ -35,6 +47,7 @@ router.get("/", async (req, res) => {
     })
     .from(clientsTable)
     .leftJoin(usersTable, eq(clientsTable.cobradorId, usersTable.id))
+    .where(whereClause)
     .orderBy(clientsTable.createdAt);
   res.json(rows.map(r => mapClient(r.client, r.cobrador?.id ? r.cobrador : null)));
 });
@@ -45,6 +58,8 @@ router.post("/", async (req, res) => {
     res.status(400).json({ error: "Datos inválidos" });
     return;
   }
+
+  const bizId = await getBusinessId(req);
 
   const [client] = await db.insert(clientsTable).values({
     name: parsed.data.name,
@@ -60,6 +75,7 @@ router.post("/", async (req, res) => {
     fiadorPhone: parsed.data.fiadorPhone ?? null,
     status: "active",
     riskScore: 50,
+    businessId: bizId,
   }).returning();
 
   res.status(201).json(mapClient(client));
@@ -78,7 +94,12 @@ router.patch("/:id", async (req, res) => {
     return;
   }
 
-  const existing = await db.select().from(clientsTable).where(eq(clientsTable.id, paramsParsed.data.id)).limit(1);
+  const bizId = await getBusinessId(req);
+  const whereClause = bizId !== null
+    ? and(eq(clientsTable.id, paramsParsed.data.id), eq(clientsTable.businessId, bizId))
+    : eq(clientsTable.id, paramsParsed.data.id);
+
+  const existing = await db.select().from(clientsTable).where(whereClause).limit(1);
   if (!existing[0]) {
     res.status(404).json({ error: "Cliente no encontrado" });
     return;
@@ -116,11 +137,16 @@ router.get("/:id", async (req, res) => {
     return;
   }
 
+  const bizId = await getBusinessId(req);
+  const whereClause = bizId !== null
+    ? and(eq(clientsTable.id, parsed.data.id), eq(clientsTable.businessId, bizId))
+    : eq(clientsTable.id, parsed.data.id);
+
   const rows = await db
     .select({ client: clientsTable, cobrador: { id: usersTable.id, name: usersTable.name } })
     .from(clientsTable)
     .leftJoin(usersTable, eq(clientsTable.cobradorId, usersTable.id))
-    .where(eq(clientsTable.id, parsed.data.id))
+    .where(whereClause)
     .limit(1);
   const { client, cobrador } = rows[0] ?? {};
   if (!client) {
@@ -156,6 +182,9 @@ router.get("/:id", async (req, res) => {
           amount: Number(i.amount),
           status: i.status,
           paidAt: i.paidAt?.toISOString() ?? undefined,
+          gpsLat: i.gpsLat ?? undefined,
+          gpsLng: i.gpsLng ?? undefined,
+          photoUrl: i.photoUrl ?? undefined,
         })),
       };
     })

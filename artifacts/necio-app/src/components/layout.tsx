@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, PlusCircle, UserCog } from "lucide-react";
+import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Sidebar() {
@@ -24,7 +24,10 @@ function Sidebar() {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/today", label: "Cobros de Hoy", icon: CalendarCheck },
     { href: "/clients", label: "Clientes", icon: Users },
-    ...(user?.role === "admin" ? [{ href: "/cobradores", label: "Cobradores", icon: UserCog }] : []),
+    ...(user?.role === "admin" ? [
+      { href: "/cobradores", label: "Cobradores", icon: UserCog },
+      { href: "/billing", label: "Facturación", icon: CreditCard },
+    ] : []),
   ];
 
   return (

@@ -11,14 +11,28 @@ function hashPassword(p: string) {
   return crypto.createHash("sha256").update(p).digest("hex");
 }
 
+async function getAdminUser(req: any) {
+  const userId = req.session?.userId;
+  if (!userId) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return user ?? null;
+}
+
 function requireAdmin(req: any, res: any, next: any) {
   if (!req.session?.userId) { res.status(401).json({ error: "No autenticado" }); return; }
   next();
 }
 
-// GET /api/cobradores — list all cobradores with stats
+// GET /api/cobradores — list cobradores in same business
 router.get("/", requireAdmin, async (req, res) => {
-  const cobradores = await db.select().from(usersTable).where(eq(usersTable.role, "cobrador"));
+  const admin = await getAdminUser(req);
+  const bizId = admin?.businessId;
+
+  const cobradores = await db.select().from(usersTable).where(
+    bizId !== null && bizId !== undefined
+      ? and(eq(usersTable.role, "cobrador"), eq(usersTable.businessId, bizId))
+      : eq(usersTable.role, "cobrador")
+  );
   const today = new Date().toISOString().split("T")[0];
 
   const withStats = await Promise.all(cobradores.map(async (cob) => {
@@ -40,24 +54,17 @@ router.get("/", requireAdmin, async (req, res) => {
 
     if (clientIds.length > 0) {
       const todayInstallments = await db
-        .select({
-          status: installmentsTable.status,
-          amount: installmentsTable.amount,
-        })
+        .select({ status: installmentsTable.status, amount: installmentsTable.amount })
         .from(installmentsTable)
         .innerJoin(loansTable, eq(installmentsTable.loanId, loansTable.id))
-        .where(
-          and(
-            eq(installmentsTable.dueDate, today),
-            sql`${loansTable.clientId} = ANY(ARRAY[${sql.raw(clientIds.join(","))}]::int[])`
-          )
-        );
+        .where(and(
+          eq(installmentsTable.dueDate, today),
+          sql`${loansTable.clientId} = ANY(ARRAY[${sql.raw(clientIds.join(","))}]::int[])`
+        ));
 
       cuotasHoy = todayInstallments.length;
       totalHoy = todayInstallments.reduce((s, i) => s + Number(i.amount), 0);
-      cobradoHoy = todayInstallments
-        .filter(i => i.status === "paid")
-        .reduce((s, i) => s + Number(i.amount), 0);
+      cobradoHoy = todayInstallments.filter(i => i.status === "paid").reduce((s, i) => s + Number(i.amount), 0);
     }
 
     return {
@@ -73,8 +80,9 @@ router.get("/", requireAdmin, async (req, res) => {
   res.json(withStats);
 });
 
-// POST /api/cobradores — create cobrador account
+// POST /api/cobradores — create cobrador in same business as admin
 router.post("/", requireAdmin, async (req, res) => {
+  const admin = await getAdminUser(req);
   const { username, password, name } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: "username, password y name son requeridos" });
@@ -92,6 +100,7 @@ router.post("/", requireAdmin, async (req, res) => {
     passwordHash: hashPassword(password),
     name,
     role: "cobrador",
+    businessId: admin?.businessId ?? null,
   }).returning();
 
   res.status(201).json({
@@ -104,7 +113,7 @@ router.post("/", requireAdmin, async (req, res) => {
   });
 });
 
-// PATCH /api/cobradores/:id — update name or password
+// PATCH /api/cobradores/:id
 router.patch("/:id", requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const { name, password } = req.body;
@@ -124,16 +133,14 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   res.json({ id: updated.id, username: updated.username, name: updated.name, role: updated.role });
 });
 
-// DELETE /api/cobradores/:id — delete cobrador (unassign their clients first)
+// DELETE /api/cobradores/:id
 router.delete("/:id", requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
 
   const [cob] = await db.select().from(usersTable).where(and(eq(usersTable.id, id), eq(usersTable.role, "cobrador"))).limit(1);
   if (!cob) { res.status(404).json({ error: "Cobrador no encontrado" }); return; }
 
-  // Unassign their clients
   await db.update(clientsTable).set({ cobradorId: null }).where(eq(clientsTable.cobradorId, id));
-
   await db.delete(usersTable).where(eq(usersTable.id, id));
   res.json({ ok: true });
 });

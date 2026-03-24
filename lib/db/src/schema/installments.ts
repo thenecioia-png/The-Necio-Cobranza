@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, numeric, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { loansTable } from "./loans";
@@ -11,6 +11,10 @@ export const installmentsTable = pgTable("installments", {
   status: text("status").notNull().default("pending"),
   paidAt: timestamp("paid_at"),
   paymentMethod: text("payment_method").default("efectivo"),
+  gpsLat: real("gps_lat"),
+  gpsLng: real("gps_lng"),
+  photoUrl: text("photo_url"),
+  cobradorId: integer("cobrador_id"),
 });
 
 export const insertInstallmentSchema = createInsertSchema(installmentsTable).omit({ id: true });

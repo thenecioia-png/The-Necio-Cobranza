@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, businessesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { LoginBody } from "@workspace/api-zod";
 import crypto from "crypto";
@@ -16,8 +16,18 @@ declare module "express-serve-static-core" {
   }
 }
 
+function mapUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    role: user.role,
+    businessId: user.businessId ?? undefined,
+  };
+}
+
 router.post("/register", async (req, res) => {
-  const { username, password, name } = req.body;
+  const { username, password, name, businessName } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: "Todos los campos son requeridos" });
     return;
@@ -34,17 +44,24 @@ router.post("/register", async (req, res) => {
     return;
   }
 
+  // Create business first
+  const [business] = await db.insert(businessesTable).values({
+    name: businessName || `${name}'s Business`,
+    planType: "basic",
+  }).returning();
+
   const [user] = await db.insert(usersTable).values({
     username,
     passwordHash: hashPassword(password),
     name,
+    businessId: business.id,
   }).returning();
 
   (req.session as any).userId = user.id;
 
   res.status(201).json({
-    user: { id: user.id, username: user.username, name: user.name, role: user.role },
-    message: "Cuenta creada exitosamente"
+    user: mapUser(user),
+    message: "Cuenta creada exitosamente",
   });
 });
 
@@ -73,8 +90,8 @@ router.post("/login", async (req, res) => {
   (req.session as any).userId = user.id;
 
   res.json({
-    user: { id: user.id, username: user.username, name: user.name, role: user.role },
-    message: "Sesión iniciada"
+    user: mapUser(user),
+    message: "Sesión iniciada",
   });
 });
 
@@ -102,7 +119,7 @@ router.get("/me", async (req, res) => {
     return;
   }
 
-  res.json({ id: user.id, username: user.username, name: user.name, role: user.role });
+  res.json(mapUser(user));
 });
 
 export default router;

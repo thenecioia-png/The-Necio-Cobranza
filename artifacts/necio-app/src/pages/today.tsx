@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useGetTodayInstallments, getGetTodayInstallmentsQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatRD, cn } from "@/lib/utils";
-import { CheckCircle2, Phone, Receipt, Search, CheckSquare, Square, Banknote, X, Loader2, Navigation, MapPin } from "lucide-react";
+import { CheckCircle2, Phone, Receipt, Search, CheckSquare, Square, Banknote, X, Loader2, Navigation, MapPin, Camera, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,10 +27,66 @@ export default function TodayInstallments() {
   const [abonoAmount, setAbonoAmount] = useState("");
   const [bulkLoading, setBulkLoading] = useState(false);
   const [abonoLoading, setAbonoLoading] = useState(false);
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<Record<number, File>>({});
+  const [photoUploading, setPhotoUploading] = useState<number | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [pendingSync, setPendingSync] = useState(0);
 
   const { data: installments, isLoading } = useGetTodayInstallments();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOffline(false);
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: "SYNC_NOW" });
+      }
+    };
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", (e) => {
+        if (e.data?.type === "SYNC_COMPLETE") {
+          toast({ title: `${e.data.synced} pago(s) sincronizados`, description: "Los pagos offline se enviaron." });
+          invalidateAll();
+          setPendingSync(0);
+        }
+      });
+    }
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  const captureGps = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setGpsLoading(true);
+    setGpsError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsLoading(false);
+      },
+      () => {
+        setGpsError("Sin permiso de ubicación");
+        setGpsLoading(false);
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  }, []);
+
+  const handleOpenPayPanel = (id: number) => {
+    setPayingId(id === payingId ? null : id);
+    if (id !== payingId) captureGps();
+  };
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: getGetTodayInstallmentsQueryKey() });
@@ -40,17 +96,66 @@ export default function TodayInstallments() {
   const handlePay = async (id: number) => {
     const method = payMethod[id] || "efectivo";
     setSingleLoading(id);
+
+    let photoUrl: string | undefined;
+    const photoFile = photoFiles[id];
+
+    if (photoFile) {
+      setPhotoUploading(id);
+      try {
+        const urlRes = await fetch(`${API_BASE}/storage/uploads/request-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ name: photoFile.name, size: photoFile.size, contentType: photoFile.type }),
+        });
+        if (urlRes.ok) {
+          const { uploadURL, objectPath } = await urlRes.json();
+          await fetch(uploadURL, {
+            method: "PUT",
+            body: photoFile,
+            headers: { "Content-Type": photoFile.type },
+          });
+          photoUrl = objectPath;
+        }
+      } catch {
+        toast({ variant: "destructive", title: "Foto no subida", description: "Continuando sin foto de prueba." });
+      } finally {
+        setPhotoUploading(null);
+      }
+    }
+
     try {
       const res = await fetch(`${API_BASE}/installments/${id}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentMethod: method }),
+        credentials: "include",
+        body: JSON.stringify({
+          paymentMethod: method,
+          gpsLat: gpsCoords?.lat ?? null,
+          gpsLng: gpsCoords?.lng ?? null,
+          photoUrl: photoUrl ?? null,
+        }),
       });
+
+      const data = await res.json();
+
+      if (data.offline) {
+        setPendingSync(p => p + 1);
+        toast({ title: "Sin conexión", description: "Pago guardado. Se enviará cuando vuelva internet." });
+        setPayingId(null);
+        return;
+      }
+
       if (!res.ok) throw new Error();
       invalidateAll();
       setPayingId(null);
+      setPhotoFiles(prev => { const n = { ...prev }; delete n[id]; return n; });
       const methodLabel = PAYMENT_METHODS.find(m => m.value === method)?.label ?? method;
-      toast({ title: "¡Cobrado!", description: `Pago registrado como ${methodLabel}.` });
+      toast({
+        title: "¡Cobrado!",
+        description: `Pago registrado como ${methodLabel}${gpsCoords ? " · GPS ✓" : ""}${photoUrl ? " · Foto ✓" : ""}.`,
+      });
     } catch {
       toast({ variant: "destructive", title: "Error", description: "No se pudo registrar el pago." });
     } finally {
@@ -65,6 +170,7 @@ export default function TodayInstallments() {
       const res = await fetch(`${API_BASE}/installments/pay-bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ installmentIds: Array.from(selected) }),
       });
       const data = await res.json();
@@ -92,6 +198,7 @@ export default function TodayInstallments() {
       const res = await fetch(`${API_BASE}/installments/abono/${abonoModal.clientId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ amount }),
       });
       const data = await res.json();
@@ -143,6 +250,28 @@ export default function TodayInstallments() {
 
   return (
     <div className="p-6 lg:p-10 max-w-5xl mx-auto">
+      {/* Offline banner */}
+      <AnimatePresence>
+        {(isOffline || pendingSync > 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={cn(
+              "mb-4 flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-medium",
+              isOffline
+                ? "bg-amber-500/10 border border-amber-500/30 text-amber-400"
+                : "bg-blue-500/10 border border-blue-500/30 text-blue-400"
+            )}
+          >
+            <WifiOff className="w-4 h-4 shrink-0" />
+            {isOffline
+              ? `Sin conexión — los pagos se guardarán y sincronizarán al reconectar.`
+              : `${pendingSync} pago(s) pendientes de sincronizar...`}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
@@ -231,6 +360,7 @@ export default function TodayInstallments() {
               const clientCiudad = (inst as any).clientCiudad as string | undefined;
               const mapsQuery = [clientAddress, clientSector, clientCiudad].filter(Boolean).join(", ");
               const selectedMethod = payMethod[inst.id] || "efectivo";
+              const hasPhoto = !!photoFiles[inst.id];
 
               return (
                 <motion.div
@@ -264,6 +394,12 @@ export default function TodayInstallments() {
                               Pagado · {(inst as any).paymentMethod === "transferencia" ? "🏦 Transferencia" : (inst as any).paymentMethod === "otro" ? "📋 Otro" : "💵 Efectivo"}
                             </span>
                           )}
+                          {isPaid && (inst as any).gpsLat && (
+                            <span className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 rounded font-bold">📍 GPS</span>
+                          )}
+                          {isPaid && (inst as any).photoUrl && (
+                            <span className="bg-violet-500/20 text-violet-400 text-xs px-2 py-0.5 rounded font-bold">📸 Foto</span>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                           {inst.clientPhone && (
@@ -279,7 +415,6 @@ export default function TodayInstallments() {
                               href={`https://maps.google.com/?q=${encodeURIComponent(mapsQuery)}`}
                               target="_blank" rel="noreferrer"
                               className="flex items-center gap-1.5 hover:text-blue-400 transition-colors"
-                              title="Abrir en Google Maps"
                             >
                               <Navigation className="w-3.5 h-3.5" /> Cómo llegar
                             </a>
@@ -305,7 +440,7 @@ export default function TodayInstallments() {
                             <Banknote className="w-4 h-4" /> Abono
                           </button>
                           <button
-                            onClick={() => setPayingId(isPaying ? null : inst.id)}
+                            onClick={() => handleOpenPayPanel(inst.id)}
                             className={cn(
                               "font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 text-sm",
                               isPaying
@@ -335,7 +470,7 @@ export default function TodayInstallments() {
                     </div>
                   </div>
 
-                  {/* Payment method panel (only when clicking Cobrar) */}
+                  {/* Payment panel */}
                   <AnimatePresence>
                     {isPaying && !isPaid && (
                       <motion.div
@@ -344,33 +479,76 @@ export default function TodayInstallments() {
                         exit={{ height: 0, opacity: 0 }}
                         className="border-t border-border/60 overflow-hidden"
                       >
-                        <div className="px-5 py-4 bg-secondary/20">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Método de Pago</p>
-                          <div className="flex gap-2 flex-wrap mb-4">
-                            {PAYMENT_METHODS.map(m => (
-                              <button
-                                key={m.value}
-                                onClick={() => setPayMethod(prev => ({ ...prev, [inst.id]: m.value }))}
-                                className={cn(
-                                  "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all",
-                                  selectedMethod === m.value
-                                    ? "bg-primary/20 border-primary text-primary"
-                                    : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                                )}
-                              >
-                                <span>{m.emoji}</span> {m.label}
-                              </button>
-                            ))}
+                        <div className="px-5 py-4 bg-secondary/20 space-y-4">
+                          {/* GPS status */}
+                          <div className="flex items-center gap-2 text-xs">
+                            {gpsLoading ? (
+                              <><Loader2 className="w-3 h-3 animate-spin text-muted-foreground" /><span className="text-muted-foreground">Obteniendo ubicación GPS...</span></>
+                            ) : gpsCoords ? (
+                              <><MapPin className="w-3 h-3 text-emerald-500" /><span className="text-emerald-500 font-semibold">Ubicación capturada ({gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)})</span></>
+                            ) : (
+                              <><MapPin className="w-3 h-3 text-amber-500" /><span className="text-amber-500">{gpsError || "Sin ubicación GPS"}</span>
+                                <button onClick={captureGps} className="text-primary underline ml-1">Reintentar</button></>
+                            )}
                           </div>
+
+                          {/* Payment method */}
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Método de Pago</p>
+                            <div className="flex gap-2 flex-wrap">
+                              {PAYMENT_METHODS.map(m => (
+                                <button
+                                  key={m.value}
+                                  onClick={() => setPayMethod(prev => ({ ...prev, [inst.id]: m.value }))}
+                                  className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all",
+                                    selectedMethod === m.value
+                                      ? "bg-primary/20 border-primary text-primary"
+                                      : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                                  )}
+                                >
+                                  <span>{m.emoji}</span> {m.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Photo upload */}
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Foto de Prueba (opcional)</p>
+                            <label className="cursor-pointer inline-block">
+                              <div className={cn(
+                                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all",
+                                hasPhoto
+                                  ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                                  : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                              )}>
+                                <Camera className="w-4 h-4" />
+                                {hasPhoto ? `✓ ${photoFiles[inst.id].name.slice(0, 25)}` : "Tomar / Subir Foto"}
+                              </div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (file) setPhotoFiles(prev => ({ ...prev, [inst.id]: file }));
+                                }}
+                              />
+                            </label>
+                          </div>
+
+                          {/* Confirm button */}
                           <button
                             onClick={() => handlePay(inst.id)}
-                            disabled={singleLoading === inst.id}
+                            disabled={singleLoading === inst.id || photoUploading === inst.id}
                             className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(5,150,105,0.3)] transition-all disabled:opacity-50"
                           >
-                            {singleLoading === inst.id
+                            {(singleLoading === inst.id || photoUploading === inst.id)
                               ? <Loader2 className="w-5 h-5 animate-spin" />
                               : <CheckCircle2 className="w-5 h-5" />}
-                            Confirmar Cobro · {formatRD(inst.amount)} ({PAYMENT_METHODS.find(m => m.value === selectedMethod)?.emoji})
+                            {photoUploading === inst.id ? "Subiendo foto..." : `Confirmar · ${formatRD(inst.amount)} (${PAYMENT_METHODS.find(m => m.value === selectedMethod)?.emoji})`}
                           </button>
                         </div>
                       </motion.div>
@@ -429,7 +607,7 @@ export default function TodayInstallments() {
                   className="w-full bg-background border border-border rounded-xl px-4 py-3 text-2xl font-display focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all mb-2"
                 />
                 <p className="text-xs text-muted-foreground mb-6">
-                  Se aplica a las cuotas más antiguas primero. Si no alcanza para una cuota completa, el resto se nota.
+                  Se aplica a las cuotas más antiguas primero.
                 </p>
 
                 <div className="flex gap-3">

@@ -9,16 +9,23 @@ router.get("/today", async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
   const userId = (req.session as any)?.userId as number | undefined;
 
-  // Determine if user is cobrador; if so, filter to their clients
   let cobradorFilter: number | null = null;
+  let businessIdFilter: number | null = null;
+
   if (userId) {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
     if (user?.role === "cobrador") cobradorFilter = user.id;
+    if (user?.businessId) businessIdFilter = user.businessId;
   }
 
-  const whereClause = cobradorFilter !== null
-    ? and(eq(installmentsTable.dueDate, today), eq(clientsTable.cobradorId, cobradorFilter))
-    : eq(installmentsTable.dueDate, today);
+  let whereClause: any;
+  if (cobradorFilter !== null) {
+    whereClause = and(eq(installmentsTable.dueDate, today), eq(clientsTable.cobradorId, cobradorFilter));
+  } else if (businessIdFilter !== null) {
+    whereClause = and(eq(installmentsTable.dueDate, today), eq(clientsTable.businessId, businessIdFilter));
+  } else {
+    whereClause = eq(installmentsTable.dueDate, today);
+  }
 
   const rows = await db
     .select({
@@ -29,6 +36,9 @@ router.get("/today", async (req, res) => {
       status: installmentsTable.status,
       paidAt: installmentsTable.paidAt,
       paymentMethod: installmentsTable.paymentMethod,
+      gpsLat: installmentsTable.gpsLat,
+      gpsLng: installmentsTable.gpsLng,
+      photoUrl: installmentsTable.photoUrl,
       clientName: clientsTable.name,
       clientPhone: clientsTable.phone,
       clientId: clientsTable.id,
@@ -51,6 +61,9 @@ router.get("/today", async (req, res) => {
     status: r.status,
     paymentMethod: r.paymentMethod ?? "efectivo",
     paidAt: r.paidAt?.toISOString() ?? undefined,
+    gpsLat: r.gpsLat ?? undefined,
+    gpsLng: r.gpsLng ?? undefined,
+    photoUrl: r.photoUrl ?? undefined,
     clientName: r.clientName,
     clientPhone: r.clientPhone ?? undefined,
     clientId: r.clientId,
@@ -85,9 +98,23 @@ router.post("/:id/pay", async (req, res) => {
     ? req.body.paymentMethod
     : "efectivo";
 
+  const gpsLat = typeof req.body?.gpsLat === "number" ? req.body.gpsLat : null;
+  const gpsLng = typeof req.body?.gpsLng === "number" ? req.body.gpsLng : null;
+  const photoUrl = typeof req.body?.photoUrl === "string" ? req.body.photoUrl : null;
+
+  const userId = (req.session as any)?.userId as number | undefined;
+
   const [updated] = await db
     .update(installmentsTable)
-    .set({ status: "paid", paidAt: new Date(), paymentMethod })
+    .set({
+      status: "paid",
+      paidAt: new Date(),
+      paymentMethod,
+      gpsLat,
+      gpsLng,
+      photoUrl,
+      cobradorId: userId ?? null,
+    })
     .where(eq(installmentsTable.id, parsed.data.id))
     .returning();
 
@@ -99,6 +126,9 @@ router.post("/:id/pay", async (req, res) => {
     status: updated.status,
     paymentMethod: updated.paymentMethod ?? "efectivo",
     paidAt: updated.paidAt?.toISOString() ?? undefined,
+    gpsLat: updated.gpsLat ?? undefined,
+    gpsLng: updated.gpsLng ?? undefined,
+    photoUrl: updated.photoUrl ?? undefined,
   });
 });
 
@@ -147,7 +177,6 @@ router.post("/abono/:clientId", async (req, res) => {
 
   let remaining = amount;
 
-  // Get all pending/late installments for this client, ordered oldest first
   const pendingInstallments = await db
     .select({
       id: installmentsTable.id,

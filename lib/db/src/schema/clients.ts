@@ -1,9 +1,10 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const clientsTable = pgTable("clients", {
   id: serial("id").primaryKey(),
+  businessId: integer("business_id"),
   name: text("name").notNull(),
   apodo: text("apodo"),
   phone: text("phone"),
@@ -18,6 +19,8 @@ export const clientsTable = pgTable("clients", {
   fiadorName: text("fiador_name"),
   fiadorPhone: text("fiador_phone"),
   cobradorId: integer("cobrador_id"),
+  gpsLat: real("gps_lat"),
+  gpsLng: real("gps_lng"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

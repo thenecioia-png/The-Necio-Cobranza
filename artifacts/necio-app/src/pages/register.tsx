@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Lock, User, UserPlus, ArrowLeft } from "lucide-react";
+import { Loader2, Lock, User, UserPlus, ArrowLeft, Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 
@@ -11,6 +11,7 @@ export default function Register() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const [businessName, setBusinessName] = useState("");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +20,7 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !username || !password) return;
+    if (!businessName || !name || !username || !password) return;
 
     if (password !== confirmPassword) {
       toast({
@@ -45,7 +46,7 @@ export default function Register() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, username, password }),
+        body: JSON.stringify({ name, username, password, businessName }),
       });
 
       const data = await res.json();
@@ -109,13 +110,27 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Building2 className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <input
+              type="text"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+              placeholder="Nombre de tu negocio"
+              className="w-full bg-background/50 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-white placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+              required
+            />
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <UserPlus className="h-5 w-5 text-muted-foreground" />
             </div>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Nombre completo"
+              placeholder="Tu nombre completo"
               className="w-full bg-background/50 border border-white/10 rounded-xl py-3.5 pl-11 pr-4 text-white placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
               required
             />
