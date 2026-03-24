@@ -9,6 +9,9 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const app: Express = express();
 
+// Trust Replit's reverse proxy so secure cookies work over HTTPS
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
