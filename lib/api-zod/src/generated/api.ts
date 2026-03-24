@@ -109,6 +109,7 @@ export const UpdateClientBody = zod.object({
   fiadorName: zod.string().optional(),
   fiadorPhone: zod.string().optional(),
   cobradorId: zod.number().nullable().optional(),
+  avatarUrl: zod.string().nullable().optional(),
 });
 
 export const UpdateClientResponse = zod.object({

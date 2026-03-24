@@ -16,9 +16,10 @@ export default function Login() {
 
   const loginMutation = useLogin({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (data: any) => {
         queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        setLocation("/dashboard");
+        const role = data?.user?.role;
+        setLocation(role === "cobrador" ? "/today" : "/dashboard");
       },
       onError: (error: any) => {
         toast({

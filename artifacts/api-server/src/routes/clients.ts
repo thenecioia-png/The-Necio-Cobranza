@@ -121,7 +121,12 @@ router.patch("/:id", async (req, res) => {
   if (body.fiadorName !== undefined) updates.fiadorName = body.fiadorName;
   if (body.fiadorPhone !== undefined) updates.fiadorPhone = body.fiadorPhone;
   if (body.cobradorId !== undefined) updates.cobradorId = body.cobradorId ?? null;
-  if ((body as any).avatarUrl !== undefined) updates.avatarUrl = (body as any).avatarUrl ?? null;
+  if (body.avatarUrl !== undefined) updates.avatarUrl = body.avatarUrl ?? null;
+
+  if (Object.keys(updates).length === 0) {
+    res.json(mapClient(existing[0]));
+    return;
+  }
 
   const [updated] = await db
     .update(clientsTable)

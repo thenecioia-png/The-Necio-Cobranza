@@ -438,26 +438,30 @@ export default function TodayInstallments() {
                         </p>
                       </div>
 
-                      {!isPaid && !selectMode && (
-                        <div className="flex gap-2">
+                      {!selectMode && (
+                        <div className="flex gap-2 items-center">
+                          {isPaid && <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />}
                           <button
                             onClick={() => { setAbonoModal({ clientId, clientName: inst.clientName }); setAbonoAmount(""); }}
                             className="border border-border bg-background hover:bg-white/5 text-sm font-semibold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+                            title="Aplicar abono a cuotas futuras"
                           >
                             <Banknote className="w-4 h-4" /> Abono
                           </button>
-                          <button
-                            onClick={() => handleOpenPayPanel(inst.id)}
-                            className={cn(
-                              "font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 text-sm",
-                              isPaying
-                                ? "bg-primary/20 border border-primary text-primary"
-                                : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_12px_rgba(5,150,105,0.25)]"
-                            )}
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            {isPaying ? "Cancelar" : "Cobrar"}
-                          </button>
+                          {!isPaid && (
+                            <button
+                              onClick={() => handleOpenPayPanel(inst.id)}
+                              className={cn(
+                                "font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 text-sm",
+                                isPaying
+                                  ? "bg-primary/20 border border-primary text-primary"
+                                  : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_12px_rgba(5,150,105,0.25)]"
+                              )}
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              {isPaying ? "Cancelar" : "Cobrar"}
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -473,7 +477,7 @@ export default function TodayInstallments() {
                         </button>
                       )}
 
-                      {isPaid && <CheckCircle2 className="w-7 h-7 text-emerald-500 shrink-0" />}
+                      {isPaid && selectMode && <CheckCircle2 className="w-7 h-7 text-emerald-500 shrink-0" />}
                     </div>
                   </div>
 

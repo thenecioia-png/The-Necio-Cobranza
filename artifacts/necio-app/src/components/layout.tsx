@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -99,14 +99,24 @@ function Sidebar() {
   );
 }
 
+const COBRADOR_ALLOWED = ["/today", "/clients", "/clients/new"];
+const ADMIN_ONLY = ["/dashboard", "/cobradores", "/billing"];
+
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { data, isLoading, isError } = useGetMe({ 
     query: { 
       retry: false,
       refetchOnWindowFocus: false
     } 
   });
+
+  useEffect(() => {
+    if (!data) return;
+    if (data.role === "cobrador" && ADMIN_ONLY.some(p => location.startsWith(p))) {
+      setLocation("/today");
+    }
+  }, [data, location]);
 
   if (isLoading) {
     return (
