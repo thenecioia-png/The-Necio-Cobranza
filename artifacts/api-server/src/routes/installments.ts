@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, installmentsTable, loansTable, clientsTable } from "@workspace/db";
+import { db, installmentsTable, loansTable, clientsTable, usersTable } from "@workspace/db";
 import { eq, and, inArray, ne } from "drizzle-orm";
 import { PayInstallmentParams } from "@workspace/api-zod";
 
@@ -7,6 +7,18 @@ const router: IRouter = Router();
 
 router.get("/today", async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
+  const userId = (req.session as any)?.userId as number | undefined;
+
+  // Determine if user is cobrador; if so, filter to their clients
+  let cobradorFilter: number | null = null;
+  if (userId) {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (user?.role === "cobrador") cobradorFilter = user.id;
+  }
+
+  const whereClause = cobradorFilter !== null
+    ? and(eq(installmentsTable.dueDate, today), eq(clientsTable.cobradorId, cobradorFilter))
+    : eq(installmentsTable.dueDate, today);
 
   const rows = await db
     .select({
@@ -28,7 +40,7 @@ router.get("/today", async (req, res) => {
     .from(installmentsTable)
     .innerJoin(loansTable, eq(installmentsTable.loanId, loansTable.id))
     .innerJoin(clientsTable, eq(loansTable.clientId, clientsTable.id))
-    .where(eq(installmentsTable.dueDate, today))
+    .where(whereClause)
     .orderBy(installmentsTable.status);
 
   res.json(rows.map(r => ({

@@ -12,6 +12,7 @@ import ClientList from "./pages/client-list";
 import ClientDetail from "./pages/client-detail";
 import ClientCreate from "./pages/client-create";
 import LoanCreate from "./pages/loan-create";
+import Cobradores from "./pages/cobradores";
 import { AuthGuard } from "./components/layout";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,9 @@ function Router() {
       </Route>
       <Route path="/loans/new">
         <AuthGuard><LoanCreate /></AuthGuard>
+      </Route>
+      <Route path="/cobradores">
+        <AuthGuard><Cobradores /></AuthGuard>
       </Route>
 
       <Route component={NotFound} />

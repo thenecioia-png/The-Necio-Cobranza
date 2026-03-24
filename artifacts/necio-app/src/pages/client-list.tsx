@@ -136,10 +136,15 @@ export default function ClientList() {
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className="text-xs text-muted-foreground">
                     Riesgo: <span className={cn("font-semibold", riskCfg.color)}>{riskCfg.label}</span>
                   </div>
+                  {(client as any).cobrador && (
+                    <span className="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-lg font-semibold">
+                      👤 {(client as any).cobrador.name}
+                    </span>
+                  )}
                 </div>
                 <Link href={`/clients/${client.id}`} className="text-primary hover:text-white flex items-center gap-1 text-sm font-bold transition-colors">
                   Ver <ArrowRight className="w-4 h-4" />

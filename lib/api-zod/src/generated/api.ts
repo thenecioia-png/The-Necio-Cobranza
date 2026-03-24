@@ -108,6 +108,7 @@ export const UpdateClientBody = zod.object({
   ciudad: zod.string().optional(),
   fiadorName: zod.string().optional(),
   fiadorPhone: zod.string().optional(),
+  cobradorId: zod.number().nullable().optional(),
 });
 
 export const UpdateClientResponse = zod.object({

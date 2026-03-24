@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
-import { db, clientsTable, loansTable, installmentsTable } from "@workspace/db";
+import { db, clientsTable, loansTable, installmentsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateClientBody, GetClientParams, UpdateClientBody, UpdateClientParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
-function mapClient(c: typeof clientsTable.$inferSelect) {
+function mapClient(c: typeof clientsTable.$inferSelect, cobrador?: { id: number; name: string } | null) {
   return {
     id: c.id,
     name: c.name,
@@ -21,13 +21,22 @@ function mapClient(c: typeof clientsTable.$inferSelect) {
     notes: c.notes ?? undefined,
     fiadorName: c.fiadorName ?? undefined,
     fiadorPhone: c.fiadorPhone ?? undefined,
+    cobradorId: c.cobradorId ?? undefined,
+    cobrador: cobrador ?? undefined,
     createdAt: c.createdAt.toISOString(),
   };
 }
 
 router.get("/", async (req, res) => {
-  const clients = await db.select().from(clientsTable).orderBy(clientsTable.createdAt);
-  res.json(clients.map(mapClient));
+  const rows = await db
+    .select({
+      client: clientsTable,
+      cobrador: { id: usersTable.id, name: usersTable.name },
+    })
+    .from(clientsTable)
+    .leftJoin(usersTable, eq(clientsTable.cobradorId, usersTable.id))
+    .orderBy(clientsTable.createdAt);
+  res.json(rows.map(r => mapClient(r.client, r.cobrador?.id ? r.cobrador : null)));
 });
 
 router.post("/", async (req, res) => {
@@ -89,6 +98,7 @@ router.patch("/:id", async (req, res) => {
   if (body.ciudad !== undefined) updates.ciudad = body.ciudad;
   if (body.fiadorName !== undefined) updates.fiadorName = body.fiadorName;
   if (body.fiadorPhone !== undefined) updates.fiadorPhone = body.fiadorPhone;
+  if (body.cobradorId !== undefined) updates.cobradorId = body.cobradorId ?? null;
 
   const [updated] = await db
     .update(clientsTable)
@@ -106,8 +116,13 @@ router.get("/:id", async (req, res) => {
     return;
   }
 
-  const clients = await db.select().from(clientsTable).where(eq(clientsTable.id, parsed.data.id)).limit(1);
-  const client = clients[0];
+  const rows = await db
+    .select({ client: clientsTable, cobrador: { id: usersTable.id, name: usersTable.name } })
+    .from(clientsTable)
+    .leftJoin(usersTable, eq(clientsTable.cobradorId, usersTable.id))
+    .where(eq(clientsTable.id, parsed.data.id))
+    .limit(1);
+  const { client, cobrador } = rows[0] ?? {};
   if (!client) {
     res.status(404).json({ error: "Cliente no encontrado" });
     return;
@@ -147,7 +162,7 @@ router.get("/:id", async (req, res) => {
   );
 
   res.json({
-    ...mapClient(client),
+    ...mapClient(client, cobrador?.id ? cobrador : null),
     loans: loansWithInstallments,
   });
 });

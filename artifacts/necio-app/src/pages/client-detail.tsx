@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
-import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, Navigation } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, Navigation, UserCog, Loader2 } from "lucide-react";
+
+interface Cobrador { id: number; name: string; username: string; }
+const fetchCobradores = (): Promise<Cobrador[]> =>
+  fetch("/api/cobradores", { credentials: "include" }).then(r => r.ok ? r.json() : []);
 
 const STATUS_CONFIG = {
   active: { label: "Activo", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
@@ -25,8 +29,10 @@ export default function ClientDetail() {
   const { toast } = useToast();
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [newRisk, setNewRisk] = useState<number | null>(null);
+  const [assigningCobrador, setAssigningCobrador] = useState(false);
 
   const { data: client, isLoading, isError } = useGetClient(id);
+  const { data: cobradores = [] } = useQuery({ queryKey: ["cobradores"], queryFn: fetchCobradores, staleTime: 60_000 });
 
   const updateMutation = useUpdateClient({
     mutation: {
@@ -51,6 +57,27 @@ export default function ClientDetail() {
     if (newRisk === null) return;
     updateMutation.mutate({ id, data: { riskScore: newRisk } });
     setNewRisk(null);
+  };
+
+  const handleCobradorAssign = async (cobradorId: number | null) => {
+    setAssigningCobrador(true);
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ cobradorId }),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
+      const name = cobradores.find(c => c.id === cobradorId)?.name;
+      toast({ title: "Cobrador asignado", description: cobradorId ? `${name} cobrará a este cliente.` : "Cliente sin cobrador asignado." });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo asignar el cobrador." });
+    } finally {
+      setAssigningCobrador(false);
+    }
   };
 
   if (isLoading) {
@@ -140,54 +167,101 @@ export default function ClientDetail() {
         </div>
 
         {showStatusPanel && (
-          <div className="mt-6 pt-6 border-t border-border/50 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Estado del Cliente</p>
-              <div className="flex gap-2 flex-wrap">
-                {(["active", "delinquent", "uncollectible"] as const).map(s => {
-                  const cfg = STATUS_CONFIG[s];
-                  const isActive = client.status === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => handleStatusChange(s)}
-                      disabled={isActive || updateMutation.isPending}
-                      className={cn(
-                        "px-4 py-2 rounded-xl text-sm font-bold border transition-all disabled:opacity-50",
-                        isActive
-                          ? `${cfg.bg} ${cfg.color} ${cfg.border}`
-                          : "bg-background border-border text-muted-foreground hover:border-primary/50"
-                      )}
-                    >
-                      {isActive ? "✓ " : ""}{cfg.label}
-                    </button>
-                  );
-                })}
+          <div className="mt-6 pt-6 border-t border-border/50 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Estado del Cliente</p>
+                <div className="flex gap-2 flex-wrap">
+                  {(["active", "delinquent", "uncollectible"] as const).map(s => {
+                    const cfg = STATUS_CONFIG[s];
+                    const isActive = client.status === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => handleStatusChange(s)}
+                        disabled={isActive || updateMutation.isPending}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-sm font-bold border transition-all disabled:opacity-50",
+                          isActive
+                            ? `${cfg.bg} ${cfg.color} ${cfg.border}`
+                            : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                        )}
+                      >
+                        {isActive ? "✓ " : ""}{cfg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Score de Riesgo (0 = bajo, 100 = alto)</p>
+                <div className="flex gap-3 items-center">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={newRisk ?? client.riskScore}
+                    onChange={(e) => setNewRisk(Number(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <span className={cn("text-lg font-bold font-display w-12 text-center", RISK_CONFIG(newRisk ?? client.riskScore).color)}>
+                    {newRisk ?? client.riskScore}
+                  </span>
+                  <button
+                    onClick={handleRiskChange}
+                    disabled={newRisk === null || updateMutation.isPending}
+                    className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all disabled:opacity-40"
+                  >
+                    Guardar
+                  </button>
+                </div>
               </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Score de Riesgo (0 = bajo, 100 = alto)</p>
-              <div className="flex gap-3 items-center">
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={newRisk ?? client.riskScore}
-                  onChange={(e) => setNewRisk(Number(e.target.value))}
-                  className="flex-1 accent-primary"
-                />
-                <span className={cn("text-lg font-bold font-display w-12 text-center", RISK_CONFIG(newRisk ?? client.riskScore).color)}>
-                  {newRisk ?? client.riskScore}
-                </span>
-                <button
-                  onClick={handleRiskChange}
-                  disabled={newRisk === null || updateMutation.isPending}
-                  className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all disabled:opacity-40"
-                >
-                  Guardar
-                </button>
+
+            {/* Cobrador Assignment */}
+            <div className="pt-5 border-t border-border/40">
+              <div className="flex items-center gap-2 mb-3">
+                <UserCog className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Cobrador Asignado</p>
               </div>
+              {cobradores.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No hay cobradores registrados. Ve a <Link href="/cobradores" className="text-primary hover:underline">Cobradores</Link> para crear uno.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleCobradorAssign(null)}
+                    disabled={assigningCobrador || !(client as any).cobradorId}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-sm font-semibold border transition-all disabled:opacity-50",
+                      !(client as any).cobradorId
+                        ? "bg-border/30 border-border text-foreground"
+                        : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                    )}
+                  >
+                    Sin asignar
+                  </button>
+                  {cobradores.map(cob => {
+                    const isAssigned = (client as any).cobradorId === cob.id;
+                    return (
+                      <button
+                        key={cob.id}
+                        onClick={() => handleCobradorAssign(cob.id)}
+                        disabled={assigningCobrador || isAssigned}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all disabled:opacity-50",
+                          isAssigned
+                            ? "bg-primary/20 border-primary text-primary"
+                            : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                        )}
+                      >
+                        {assigningCobrador && isAssigned ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                        {isAssigned ? "✓ " : ""}{cob.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

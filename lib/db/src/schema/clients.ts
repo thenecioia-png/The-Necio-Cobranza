@@ -17,6 +17,7 @@ export const clientsTable = pgTable("clients", {
   notes: text("notes"),
   fiadorName: text("fiador_name"),
   fiadorPhone: text("fiador_phone"),
+  cobradorId: integer("cobrador_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
