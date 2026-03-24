@@ -187,7 +187,7 @@ export default function Billing() {
               </div>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {subscription.clientLimit ? `Hasta ${subscription.clientLimit} clientes` : "Clientes ilimitados"} ·{" "}
-                {subscription.price === 0 ? "Gratis" : `$${subscription.price}/mes`}
+                {!subscription.price ? "Gratis" : `$${subscription.price}/mes`}
               </p>
             </div>
           </div>
