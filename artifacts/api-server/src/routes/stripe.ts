@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import { db } from "@workspace/db";
 import { businessesTable, usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -173,7 +173,5 @@ router.post("/cancel", requireAuth, async (req, res) => {
     res.status(500).json({ error: e.message || "Error al cancelar" });
   }
 });
-
-import express from "express";
 
 export default router;

@@ -9,17 +9,16 @@ import cobradoresRouter from "./cobradores";
 import storageRouter from "./storage";
 import stripeRouter from "./stripe";
 import notificationsRouter from "./notifications";
+import { getUncachableStripeClient } from "../lib/stripe";
 
 const router: IRouter = Router();
 
-// Inject Stripe client if available
-router.use((req: any, _res, next) => {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-  if (stripeKey) {
-    try {
-      const Stripe = require("stripe");
-      req.stripeClient = new Stripe(stripeKey, { apiVersion: "2024-06-20" });
-    } catch {}
+// Inject Stripe client via Replit connector (uncachable — tokens expire)
+router.use(async (req: any, _res, next) => {
+  try {
+    req.stripeClient = await getUncachableStripeClient();
+  } catch {
+    req.stripeClient = null;
   }
   next();
 });

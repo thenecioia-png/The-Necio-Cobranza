@@ -21,7 +21,8 @@
     "google-auth-library": "^10.6.2",
     "pino": "^9",
     "pino-http": "^10",
-    "stripe": "^20.4.1",
+    "stripe": "^20.0.0",
+    "stripe-replit-sync": "1.0.0",
     "twilio": "^5.13.0",
     "zod": "catalog:"
   },
