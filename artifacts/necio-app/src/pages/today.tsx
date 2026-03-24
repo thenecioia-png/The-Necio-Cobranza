@@ -5,6 +5,7 @@ import { formatRD, cn } from "@/lib/utils";
 import { CheckCircle2, Phone, Receipt, Search, CheckSquare, Square, Banknote, X, Loader2, Navigation, MapPin, Camera, WifiOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
+import { ClientAvatar } from "@/components/client-avatar";
 
 const API_BASE = "/api";
 
@@ -384,6 +385,12 @@ export default function TodayInstallments() {
                           {isSelected ? <CheckSquare className="w-6 h-6" /> : <Square className="w-6 h-6 text-muted-foreground" />}
                         </button>
                       )}
+                      <ClientAvatar
+                        name={inst.clientName}
+                        avatarUrl={(inst as any).clientAvatarUrl ?? null}
+                        size="sm"
+                        className={cn(isPaid && "opacity-50 grayscale")}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <h3 className={cn("text-lg font-bold font-display", isPaid && "line-through text-muted-foreground")}>

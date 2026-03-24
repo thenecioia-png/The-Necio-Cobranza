@@ -45,6 +45,7 @@ router.get("/today", async (req, res) => {
       clientAddress: clientsTable.address,
       clientSector: clientsTable.sector,
       clientCiudad: clientsTable.ciudad,
+      clientAvatarUrl: clientsTable.avatarUrl,
       loanFrequency: loansTable.frequency,
     })
     .from(installmentsTable)
@@ -70,6 +71,7 @@ router.get("/today", async (req, res) => {
     clientAddress: r.clientAddress ?? undefined,
     clientSector: r.clientSector ?? undefined,
     clientCiudad: r.clientCiudad ?? undefined,
+    clientAvatarUrl: r.clientAvatarUrl ?? undefined,
     loanFrequency: r.loanFrequency,
   })));
 });

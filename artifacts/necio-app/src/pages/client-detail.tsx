@@ -5,6 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
 import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, Navigation, UserCog, Loader2 } from "lucide-react";
+import { ClientAvatarUpload } from "@/components/client-avatar";
+
+const API_BASE = "/api";
 
 interface Cobrador { id: number; name: string; username: string; }
 const fetchCobradores = (): Promise<Cobrador[]> =>
@@ -30,6 +33,8 @@ export default function ClientDetail() {
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [newRisk, setNewRisk] = useState<number | null>(null);
   const [assigningCobrador, setAssigningCobrador] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const { data: client, isLoading, isError } = useGetClient(id);
   const { data: cobradores = [] } = useQuery({ queryKey: ["cobradores"], queryFn: fetchCobradores, staleTime: 60_000 });
@@ -57,6 +62,43 @@ export default function ClientDetail() {
     if (newRisk === null) return;
     updateMutation.mutate({ id, data: { riskScore: newRisk } });
     setNewRisk(null);
+  };
+
+  const handleAvatarChange = async (file: File) => {
+    const reader = new FileReader();
+    reader.onload = e => setAvatarPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+
+    setAvatarUploading(true);
+    try {
+      const urlRes = await fetch(`${API_BASE}/storage/uploads/request-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Error al obtener URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+      const upRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!upRes.ok) throw new Error("Error al subir imagen");
+
+      const patchRes = await fetch(`${API_BASE}/clients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ avatarUrl: objectPath }),
+      });
+      if (!patchRes.ok) throw new Error("Error al guardar foto");
+
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
+      toast({ title: "Foto actualizada", description: "La foto de perfil se guardó correctamente." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo subir la foto." });
+      setAvatarPreview(null);
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const handleCobradorAssign = async (cobradorId: number | null) => {
@@ -102,9 +144,16 @@ export default function ClientDetail() {
 
       <div className={cn("bg-card border rounded-3xl p-7 shadow-xl mb-6", statusCfg.border)}>
         <div className="flex flex-col md:flex-row gap-6 items-start justify-between">
-          <div className="flex gap-5 items-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-rose-900 flex items-center justify-center text-3xl text-white font-display shadow-lg shadow-primary/20 shrink-0">
-              {client.name.charAt(0).toUpperCase()}
+          <div className="flex gap-5 items-start">
+            <div className="flex flex-col items-center gap-1">
+              <ClientAvatarUpload
+                name={client.name}
+                avatarUrl={(client as any).avatarUrl}
+                previewUrl={avatarPreview}
+                onFileSelected={handleAvatarChange}
+                uploading={avatarUploading}
+              />
+              <span className="text-[10px] text-muted-foreground">Toca para cambiar</span>
             </div>
             <div>
               <div className="flex items-center gap-3 mb-1 flex-wrap">

@@ -30,6 +30,7 @@ function mapClient(c: typeof clientsTable.$inferSelect, cobrador?: { id: number;
     fiadorPhone: c.fiadorPhone ?? undefined,
     cobradorId: c.cobradorId ?? undefined,
     cobrador: cobrador ?? undefined,
+    avatarUrl: c.avatarUrl ?? undefined,
     gpsLat: c.gpsLat ?? undefined,
     gpsLng: c.gpsLng ?? undefined,
     createdAt: c.createdAt.toISOString(),
@@ -120,6 +121,7 @@ router.patch("/:id", async (req, res) => {
   if (body.fiadorName !== undefined) updates.fiadorName = body.fiadorName;
   if (body.fiadorPhone !== undefined) updates.fiadorPhone = body.fiadorPhone;
   if (body.cobradorId !== undefined) updates.cobradorId = body.cobradorId ?? null;
+  if ((body as any).avatarUrl !== undefined) updates.avatarUrl = (body as any).avatarUrl ?? null;
 
   const [updated] = await db
     .update(clientsTable)

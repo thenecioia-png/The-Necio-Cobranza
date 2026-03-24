@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useGetClients } from "@workspace/api-client-react";
-import { Users, Phone, MapPin, Search, Plus, ArrowRight, AlertTriangle, XCircle } from "lucide-react";
+import { Users, Phone, MapPin, Search, Plus, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-import { formatDate, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { ClientAvatar } from "@/components/client-avatar";
 
 const STATUS_CONFIG = {
   active: { label: "Activo", color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
@@ -111,13 +112,21 @@ export default function ClientList() {
                 "border-border hover:border-primary/50"
               )}
             >
-              <div className="flex justify-between items-start mb-3">
+              <div className="flex items-start gap-3 mb-3">
+                <ClientAvatar
+                  name={client.name}
+                  avatarUrl={(client as any).avatarUrl}
+                  size="md"
+                />
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold font-display text-foreground group-hover:text-primary transition-colors truncate">{client.name}</h3>
-                  {client.cedula && <p className="text-xs text-muted-foreground mt-0.5 font-mono">{client.cedula}</p>}
-                </div>
-                <div className={cn("ml-3 px-2.5 py-1 rounded-lg text-xs font-bold border shrink-0", statusCfg.bg, statusCfg.color, statusCfg.border)}>
-                  {statusCfg.label}
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-base font-bold font-display text-foreground group-hover:text-primary transition-colors truncate">{client.name}</h3>
+                    <div className={cn("px-2 py-0.5 rounded-lg text-xs font-bold border shrink-0", statusCfg.bg, statusCfg.color, statusCfg.border)}>
+                      {statusCfg.label}
+                    </div>
+                  </div>
+                  {client.apodo && <p className="text-xs text-muted-foreground italic">"{client.apodo}"</p>}
+                  {client.cedula && <p className="text-xs text-muted-foreground font-mono">{client.cedula}</p>}
                 </div>
               </div>
 

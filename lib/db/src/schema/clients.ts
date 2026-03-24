@@ -19,6 +19,7 @@ export const clientsTable = pgTable("clients", {
   fiadorName: text("fiador_name"),
   fiadorPhone: text("fiador_phone"),
   cobradorId: integer("cobrador_id"),
+  avatarUrl: text("avatar_url"),
   gpsLat: real("gps_lat"),
   gpsLng: real("gps_lng"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,6 +8,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, UserPlus, Loader2, User, Phone, MapPin, Shield } from "lucide-react";
 import { motion } from "framer-motion";
+import { ClientAvatarUpload } from "@/components/client-avatar";
+
+const API_BASE = "/api";
 
 const formSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -59,10 +63,44 @@ export default function ClientCreate() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: "", apodo: "", cedula: "", phone: "", whatsapp: "", address: "", sector: "", ciudad: "", notes: "", fiadorName: "", fiadorPhone: "" }
   });
+
+  const nameValue = watch("name") || "Cliente";
+
+  const handleAvatarSelected = (file: File) => {
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = e => setAvatarPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const uploadAvatar = async (file: File): Promise<string | null> => {
+    setAvatarUploading(true);
+    try {
+      const urlRes = await fetch(`${API_BASE}/storage/uploads/request-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) return null;
+      const { uploadURL, objectPath } = await urlRes.json();
+      const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!uploadRes.ok) return null;
+      return objectPath as string;
+    } catch {
+      return null;
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const createMutation = useCreateClient({
     mutation: {
@@ -78,10 +116,17 @@ export default function ClientCreate() {
     }
   });
 
-  const onSubmit = (data: FormValues) => {
+  const onSubmit = async (data: FormValues) => {
+    let avatarUrl: string | undefined;
+    if (avatarFile) {
+      const path = await uploadAvatar(avatarFile);
+      if (path) avatarUrl = path;
+    }
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== ""));
-    createMutation.mutate({ data: clean as any });
+    createMutation.mutate({ data: { ...clean, avatarUrl } as any });
   };
+
+  const isLoading = createMutation.isPending || avatarUploading;
 
   return (
     <div className="p-6 lg:p-10 max-w-4xl mx-auto">
@@ -96,13 +141,24 @@ export default function ClientCreate() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-card border border-border rounded-3xl p-7 shadow-xl"
       >
-        <div className="flex items-center gap-4 mb-8 pb-5 border-b border-border/50">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 text-primary flex items-center justify-center">
-            <UserPlus className="w-6 h-6" />
+        {/* Header with avatar picker */}
+        <div className="flex items-center gap-5 mb-8 pb-5 border-b border-border/50">
+          <div className="flex flex-col items-center gap-1.5">
+            <ClientAvatarUpload
+              name={nameValue}
+              avatarUrl={null}
+              previewUrl={avatarPreview}
+              onFileSelected={handleAvatarSelected}
+              uploading={avatarUploading}
+            />
+            <span className="text-[10px] text-muted-foreground">Foto de perfil</span>
           </div>
           <div>
             <h1 className="text-2xl font-display font-bold">Nuevo Cliente</h1>
             <p className="text-muted-foreground text-sm">Complete la ficha del cliente. Solo el nombre es obligatorio.</p>
+            {avatarFile && (
+              <p className="text-xs text-emerald-500 mt-1">📸 {avatarFile.name}</p>
+            )}
           </div>
         </div>
 
@@ -186,11 +242,11 @@ export default function ClientCreate() {
             </Link>
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              disabled={isLoading}
               className="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-xl font-bold shadow-[0_0_15px_rgba(225,29,72,0.3)] transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              {createMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
-              Guardar Cliente
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
+              {avatarUploading ? "Subiendo foto..." : "Guardar Cliente"}
             </button>
           </div>
         </form>
