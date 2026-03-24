@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, installmentsTable, loansTable, clientsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, ne } from "drizzle-orm";
 import { PayInstallmentParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -18,6 +18,7 @@ router.get("/today", async (req, res) => {
       paidAt: installmentsTable.paidAt,
       clientName: clientsTable.name,
       clientPhone: clientsTable.phone,
+      clientId: clientsTable.id,
       loanFrequency: loansTable.frequency,
     })
     .from(installmentsTable)
@@ -35,10 +36,12 @@ router.get("/today", async (req, res) => {
     paidAt: r.paidAt?.toISOString() ?? undefined,
     clientName: r.clientName,
     clientPhone: r.clientPhone ?? undefined,
+    clientId: r.clientId,
     loanFrequency: r.loanFrequency,
   })));
 });
 
+// Pay single installment
 router.post("/:id/pay", async (req, res) => {
   const parsed = PayInstallmentParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) {
@@ -71,6 +74,106 @@ router.post("/:id/pay", async (req, res) => {
     amount: Number(updated.amount),
     status: updated.status,
     paidAt: updated.paidAt?.toISOString() ?? undefined,
+  });
+});
+
+// Pay multiple installments at once
+router.post("/pay-bulk", async (req, res) => {
+  const { installmentIds } = req.body;
+  if (!Array.isArray(installmentIds) || installmentIds.length === 0 || !installmentIds.every(id => typeof id === "number")) {
+    res.status(400).json({ error: "IDs inválidos" });
+    return;
+  }
+
+  const updated = await db
+    .update(installmentsTable)
+    .set({ status: "paid", paidAt: new Date() })
+    .where(
+      and(
+        inArray(installmentsTable.id, installmentIds),
+        ne(installmentsTable.status, "paid")
+      )
+    )
+    .returning();
+
+  res.json({
+    paid: updated.length,
+    totalAmount: updated.reduce((s, i) => s + Number(i.amount), 0),
+    installments: updated.map(i => ({
+      id: i.id,
+      loanId: i.loanId,
+      dueDate: i.dueDate,
+      amount: Number(i.amount),
+      status: i.status,
+      paidAt: i.paidAt?.toISOString() ?? undefined,
+    })),
+  });
+});
+
+// Abono: apply a custom amount to the oldest pending installments of a client
+router.post("/abono/:clientId", async (req, res) => {
+  const clientId = Number(req.params.clientId);
+  const amount = Number(req.body?.amount);
+
+  if (isNaN(clientId) || isNaN(amount) || amount <= 0) {
+    res.status(400).json({ error: "Datos inválidos" });
+    return;
+  }
+
+  let remaining = amount;
+
+  // Get all pending/late installments for this client, ordered oldest first
+  const pendingInstallments = await db
+    .select({
+      id: installmentsTable.id,
+      amount: installmentsTable.amount,
+      dueDate: installmentsTable.dueDate,
+      status: installmentsTable.status,
+    })
+    .from(installmentsTable)
+    .innerJoin(loansTable, eq(installmentsTable.loanId, loansTable.id))
+    .where(
+      and(
+        eq(loansTable.clientId, clientId),
+        ne(installmentsTable.status, "paid")
+      )
+    )
+    .orderBy(installmentsTable.dueDate);
+
+  if (pendingInstallments.length === 0) {
+    res.status(400).json({ error: "Este cliente no tiene cuotas pendientes" });
+    return;
+  }
+
+  const paidIds: number[] = [];
+
+  for (const inst of pendingInstallments) {
+    const instAmount = Number(inst.amount);
+    if (remaining >= instAmount) {
+      paidIds.push(inst.id);
+      remaining -= instAmount;
+    } else {
+      break;
+    }
+  }
+
+  let paidCount = 0;
+  if (paidIds.length > 0) {
+    const updated = await db
+      .update(installmentsTable)
+      .set({ status: "paid", paidAt: new Date() })
+      .where(inArray(installmentsTable.id, paidIds))
+      .returning();
+    paidCount = updated.length;
+  }
+
+  const amountApplied = amount - remaining;
+
+  res.json({
+    paid: paidCount,
+    amountApplied,
+    amountRemaining: Math.round(remaining * 100) / 100,
+    totalPending: pendingInstallments.length,
   });
 });
 
