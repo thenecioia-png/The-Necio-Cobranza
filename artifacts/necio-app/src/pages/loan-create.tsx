@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useCreateLoan, useGetClients, getGetClientQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, CreditCard, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Loader2, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatRD } from "@/lib/utils";
 
@@ -24,13 +24,18 @@ export default function LoanCreate() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
+  const preselectedClientId = parseInt(
+    new URLSearchParams(window.location.search).get("clientId") || "0",
+    10
+  );
+
   const { data: clients, isLoading: clientsLoading } = useGetClients();
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { 
-      clientId: 0,
+    defaultValues: {
+      clientId: preselectedClientId || 0,
       amount: 1000,
       interestRate: 20,
       installmentsCount: 30,
@@ -45,6 +50,8 @@ export default function LoanCreate() {
 
   const totalAmount = watchAmount + (watchAmount * (watchInterest / 100));
   const installmentAmount = watchCount > 0 ? totalAmount / watchCount : 0;
+
+  const preselectedClient = clients?.find(c => c.id === preselectedClientId);
 
   const createMutation = useCreateLoan({
     mutation: {
@@ -72,7 +79,7 @@ export default function LoanCreate() {
         </button>
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-card border border-border rounded-3xl p-8 shadow-xl"
@@ -89,25 +96,40 @@ export default function LoanCreate() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
+
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cliente *</label>
-              <select 
-                {...register("clientId")}
-                className="w-full bg-background border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                disabled={clientsLoading}
-              >
-                <option value="0">Seleccione un cliente...</option>
-                {clients?.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} {c.cedula ? `- ${c.cedula}` : ''}</option>
-                ))}
-              </select>
+
+              {preselectedClient ? (
+                <>
+                  <div className="flex items-center gap-3 w-full bg-background border border-primary/40 rounded-xl px-4 py-3">
+                    <User className="w-4 h-4 text-primary shrink-0" />
+                    <span className="font-semibold text-foreground">
+                      {preselectedClient.name}
+                      {preselectedClient.cedula ? <span className="text-muted-foreground font-normal ml-2 text-sm">— {preselectedClient.cedula}</span> : null}
+                    </span>
+                  </div>
+                  <input type="hidden" {...register("clientId")} value={preselectedClientId} />
+                </>
+              ) : (
+                <select
+                  {...register("clientId")}
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  disabled={clientsLoading}
+                >
+                  <option value="0">Seleccione un cliente...</option>
+                  {clients?.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} {c.cedula ? `- ${c.cedula}` : ''}</option>
+                  ))}
+                </select>
+              )}
+
               {errors.clientId && <p className="text-destructive text-sm mt-1">{errors.clientId.message}</p>}
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Monto (RD$) *</label>
-              <input 
+              <input
                 type="number"
                 step="0.01"
                 {...register("amount")}
@@ -118,7 +140,7 @@ export default function LoanCreate() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Tasa de Interés (%) *</label>
-              <input 
+              <input
                 type="number"
                 step="0.1"
                 {...register("interestRate")}
@@ -129,7 +151,7 @@ export default function LoanCreate() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Cantidad de Cuotas *</label>
-              <input 
+              <input
                 type="number"
                 {...register("installmentsCount")}
                 className="w-full bg-background border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all font-display text-xl"
@@ -139,7 +161,7 @@ export default function LoanCreate() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Frecuencia *</label>
-              <select 
+              <select
                 {...register("frequency")}
                 className="w-full bg-background border border-border rounded-xl px-4 py-3.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
               >
@@ -152,7 +174,7 @@ export default function LoanCreate() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Fecha de Inicio *</label>
-              <input 
+              <input
                 type="date"
                 {...register("startDate")}
                 className="w-full bg-background border border-border rounded-xl px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"

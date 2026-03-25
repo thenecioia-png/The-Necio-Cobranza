@@ -416,7 +416,7 @@ export default function ClientDetail() {
       {client.loans.length === 0 ? (
         <div className="text-center py-16 bg-card border border-border border-dashed rounded-3xl">
           <p className="text-muted-foreground mb-4">Este cliente no tiene préstamos registrados.</p>
-          <Link href="/loans/new" className="text-primary font-bold hover:underline">Registrar el primer préstamo</Link>
+          <Link href={`/loans/new?clientId=${client.id}`} className="text-primary font-bold hover:underline">Registrar el primer préstamo</Link>
         </div>
       ) : (
         <div className="space-y-6">
