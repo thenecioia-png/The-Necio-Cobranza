@@ -496,20 +496,35 @@ export default function ClientDetail() {
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
                     {loan.installments.map((inst, i) => {
                       const isLate = inst.status !== "paid" && inst.dueDate < today;
+                      const partialPaid = Number((inst as any).paidAmount ?? 0);
+                      const hasPartial = inst.status !== "paid" && partialPaid > 0;
+                      const pendingBalance = inst.amount - partialPaid;
                       return (
                         <div key={inst.id} className={cn(
                           "p-2.5 rounded-xl border text-center relative overflow-hidden",
                           inst.status === "paid" ? "border-emerald-500/30 bg-emerald-500/5" :
+                          hasPartial ? "border-blue-500/50 bg-blue-500/10" :
                           isLate ? "border-amber-500/50 bg-amber-500/10" :
                           "border-border bg-background"
                         )}>
                           <p className="text-[10px] text-muted-foreground mb-0.5">#{i + 1}</p>
-                          <p className={cn("text-xs font-bold font-display", inst.status === "paid" ? "text-emerald-500" : isLate ? "text-amber-500" : "text-foreground")}>
-                            {formatRD(inst.amount)}
-                          </p>
+                          {hasPartial ? (
+                            <>
+                              <p className="text-[10px] font-bold font-display text-blue-400 leading-tight">
+                                {formatRD(pendingBalance)}
+                              </p>
+                              <p className="text-[8px] text-blue-300/70 leading-tight">pend.</p>
+                              <p className="text-[8px] text-muted-foreground leading-tight line-through">{formatRD(inst.amount)}</p>
+                            </>
+                          ) : (
+                            <p className={cn("text-xs font-bold font-display", inst.status === "paid" ? "text-emerald-500" : isLate ? "text-amber-500" : "text-foreground")}>
+                              {formatRD(inst.amount)}
+                            </p>
+                          )}
                           <p className="text-[9px] text-muted-foreground mt-0.5">{formatDate(inst.dueDate)}</p>
                           {inst.status === "paid" && <CheckCircle2 className="w-3 h-3 text-emerald-500 absolute top-1 right-1 opacity-60" />}
-                          {isLate && <Clock className="w-3 h-3 text-amber-500 absolute top-1 right-1 opacity-60" />}
+                          {hasPartial && <span className="absolute top-1 right-1 text-[8px] font-bold text-blue-400">~</span>}
+                          {isLate && !hasPartial && <Clock className="w-3 h-3 text-amber-500 absolute top-1 right-1 opacity-60" />}
                         </div>
                       );
                     })}
@@ -527,18 +542,19 @@ export default function ClientDetail() {
         const pending = loan.installments
           .filter(i => i.status !== "paid")
           .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-        const pendingTotal = pending.reduce((s, i) => s + Number(i.amount), 0);
+        // Real pending total = what's actually owed (accounting for partial payments)
+        const pendingTotal = pending.reduce((s, i) => s + Number(i.amount) - Number((i as any).paidAmount ?? 0), 0);
         const enteredAmount = Number(abonoAmount) || 0;
 
-        // Preview: simulate cascade
+        // Preview: simulate cascade accounting for partial payments
         let sim = enteredAmount;
         let wouldPay = 0;
-        let leftover = 0;
+        let partialLeftover = 0;
         for (const inst of pending) {
-          const a = Number(inst.amount);
-          if (sim >= a) { wouldPay++; sim -= a; } else break;
+          const due = Number(inst.amount) - Number((inst as any).paidAmount ?? 0);
+          if (sim >= due) { wouldPay++; sim -= due; } else { partialLeftover = sim; break; }
         }
-        leftover = sim;
+        const leftover = sim; // only > 0 if all pending paid
 
         const METHODS = [
           { value: "efectivo", label: "💵 Efectivo" },
@@ -585,7 +601,7 @@ export default function ClientDetail() {
                   {pending.length > 0 && (
                     <div className="flex gap-2 mt-2.5 flex-wrap">
                       {[1, 2, 3].filter(n => n <= pending.length).map(n => {
-                        const amt = pending.slice(0, n).reduce((s, i) => s + Number(i.amount), 0);
+                        const amt = pending.slice(0, n).reduce((s, i) => s + Number(i.amount) - Number((i as any).paidAmount ?? 0), 0);
                         return (
                           <button key={n} onClick={() => setAbonoAmount(String(amt))}
                             className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/20 transition-all">
@@ -605,19 +621,24 @@ export default function ClientDetail() {
                 {enteredAmount > 0 && (
                   <div className={cn(
                     "rounded-2xl border p-4 text-sm space-y-1.5",
-                    wouldPay > 0 ? "bg-blue-500/5 border-blue-500/20" : "bg-destructive/5 border-destructive/20"
+                    wouldPay > 0 || partialLeftover > 0 ? "bg-blue-500/5 border-blue-500/20" : "bg-amber-500/5 border-amber-500/20"
                   )}>
                     <p className="font-semibold text-foreground flex items-center gap-2">
                       <TrendingDown className="w-4 h-4 text-blue-400" /> Vista previa
                     </p>
-                    {wouldPay > 0 ? (
+                    {wouldPay > 0 || partialLeftover > 0 ? (
                       <>
-                        <p className="text-muted-foreground">✅ Cubrirá <span className="text-white font-bold">{wouldPay} cuota{wouldPay > 1 ? "s" : ""}</span> (del {formatDate(pending[0].dueDate)} al {formatDate(pending[wouldPay - 1].dueDate)})</p>
-                        {leftover > 0 && <p className="text-amber-400 text-xs">⚠️ Sobrante {formatRD(leftover)} no se aplica a cuotas parciales</p>}
-                        {wouldPay === pending.length && <p className="text-emerald-400 font-bold">🎉 ¡Se liquidará el préstamo completo!</p>}
+                        {wouldPay > 0 && (
+                          <p className="text-muted-foreground">✅ Cubrirá <span className="text-white font-bold">{wouldPay} cuota{wouldPay > 1 ? "s" : ""}</span> (del {formatDate(pending[0].dueDate)} al {formatDate(pending[wouldPay - 1].dueDate)})</p>
+                        )}
+                        {partialLeftover > 0 && wouldPay < pending.length && (
+                          <p className="text-blue-400 text-xs">💙 Se aplicará <span className="font-bold">{formatRD(partialLeftover)}</span> como abono parcial a la cuota #{wouldPay + 1}</p>
+                        )}
+                        {leftover > 0 && wouldPay === pending.length && <p className="text-amber-400 text-xs">⚠️ Sobrante {formatRD(leftover)} — préstamo ya liquidado</p>}
+                        {wouldPay === pending.length && leftover === 0 && <p className="text-emerald-400 font-bold">🎉 ¡Se liquidará el préstamo completo!</p>}
                       </>
                     ) : (
-                      <p className="text-destructive">El monto no alcanza para cubrir ni una cuota ({formatRD(Number(pending[0]?.amount))})</p>
+                      <p className="text-destructive">El monto se aplicará como abono parcial a la cuota #1 ({formatRD(Number(pending[0]?.amount) - Number((pending[0] as any)?.paidAmount ?? 0))} restante)</p>
                     )}
                   </div>
                 )}

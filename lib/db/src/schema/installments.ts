@@ -15,6 +15,7 @@ export const installmentsTable = pgTable("installments", {
   gpsLng: real("gps_lng"),
   photoUrl: text("photo_url"),
   cobradorId: integer("cobrador_id"),
+  paidAmount: numeric("paid_amount", { precision: 12, scale: 2 }).default("0"),
 });
 
 export const insertInstallmentSchema = createInsertSchema(installmentsTable).omit({ id: true });

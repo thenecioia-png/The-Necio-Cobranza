@@ -209,6 +209,7 @@ router.get("/:id", async (req, res) => {
         status: i.status,
         paidAt: i.paidAt,
         paymentMethod: i.paymentMethod,
+        paidAmount: Number(i.paidAmount ?? 0),
       })),
   }));
 

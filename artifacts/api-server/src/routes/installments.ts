@@ -33,6 +33,7 @@ router.get("/today", async (req, res) => {
       loanId: installmentsTable.loanId,
       dueDate: installmentsTable.dueDate,
       amount: installmentsTable.amount,
+      paidAmount: installmentsTable.paidAmount,
       status: installmentsTable.status,
       paidAt: installmentsTable.paidAt,
       paymentMethod: installmentsTable.paymentMethod,
@@ -59,6 +60,7 @@ router.get("/today", async (req, res) => {
     loanId: r.loanId,
     dueDate: r.dueDate,
     amount: Number(r.amount),
+    paidAmount: Number(r.paidAmount ?? 0),
     status: r.status,
     paymentMethod: r.paymentMethod ?? "efectivo",
     paidAt: r.paidAt?.toISOString() ?? undefined,
@@ -208,6 +210,7 @@ router.post("/abono/:clientId", async (req, res) => {
     .select({
       id: installmentsTable.id,
       amount: installmentsTable.amount,
+      paidAmount: installmentsTable.paidAmount,
       dueDate: installmentsTable.dueDate,
       status: installmentsTable.status,
     })
@@ -227,12 +230,22 @@ router.post("/abono/:clientId", async (req, res) => {
   }
 
   const paidIds: number[] = [];
+  let partialInstId: number | null = null;
+  let newPaidAmount = 0;
 
   for (const inst of pendingInstallments) {
-    const instAmount = Number(inst.amount);
-    if (remaining >= instAmount) {
+    const totalAmount = Number(inst.amount);
+    const alreadyPaid = Number(inst.paidAmount ?? 0);
+    const instDue = totalAmount - alreadyPaid;
+
+    if (remaining >= instDue) {
       paidIds.push(inst.id);
-      remaining -= instAmount;
+      remaining -= instDue;
+    } else if (remaining > 0) {
+      partialInstId = inst.id;
+      newPaidAmount = alreadyPaid + remaining;
+      remaining = 0;
+      break;
     } else {
       break;
     }
@@ -246,6 +259,13 @@ router.post("/abono/:clientId", async (req, res) => {
       .where(inArray(installmentsTable.id, paidIds))
       .returning();
     paidCount = updated.length;
+  }
+
+  if (partialInstId !== null) {
+    await db
+      .update(installmentsTable)
+      .set({ paidAmount: String(Math.round(newPaidAmount * 100) / 100) })
+      .where(eq(installmentsTable.id, partialInstId));
   }
 
   const amountApplied = amount - remaining;
@@ -275,7 +295,7 @@ router.post("/abono-loan/:loanId", async (req, res) => {
   }
 
   const pendingInstallments = await db
-    .select({ id: installmentsTable.id, amount: installmentsTable.amount, dueDate: installmentsTable.dueDate })
+    .select({ id: installmentsTable.id, amount: installmentsTable.amount, paidAmount: installmentsTable.paidAmount, dueDate: installmentsTable.dueDate })
     .from(installmentsTable)
     .where(and(eq(installmentsTable.loanId, loanId), ne(installmentsTable.status, "paid")))
     .orderBy(installmentsTable.dueDate);
@@ -287,12 +307,22 @@ router.post("/abono-loan/:loanId", async (req, res) => {
 
   let remaining = amount;
   const paidIds: number[] = [];
+  let partialInstId: number | null = null;
+  let newPaidAmount = 0;
 
   for (const inst of pendingInstallments) {
-    const instAmount = Number(inst.amount);
-    if (remaining >= instAmount) {
+    const totalAmount = Number(inst.amount);
+    const alreadyPaid = Number(inst.paidAmount ?? 0);
+    const instDue = totalAmount - alreadyPaid;
+
+    if (remaining >= instDue) {
       paidIds.push(inst.id);
-      remaining -= instAmount;
+      remaining -= instDue;
+    } else if (remaining > 0) {
+      partialInstId = inst.id;
+      newPaidAmount = alreadyPaid + remaining;
+      remaining = 0;
+      break;
     } else {
       break;
     }
@@ -306,6 +336,13 @@ router.post("/abono-loan/:loanId", async (req, res) => {
       .where(inArray(installmentsTable.id, paidIds))
       .returning();
     paidCount = updated.length;
+  }
+
+  if (partialInstId !== null) {
+    await db
+      .update(installmentsTable)
+      .set({ paidAmount: String(Math.round(newPaidAmount * 100) / 100) })
+      .where(eq(installmentsTable.id, partialInstId));
   }
 
   // Check if loan is now fully paid

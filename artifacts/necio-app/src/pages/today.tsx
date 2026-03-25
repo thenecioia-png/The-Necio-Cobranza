@@ -433,9 +433,20 @@ export default function TodayInstallments() {
                     <div className="flex items-center w-full md:w-auto justify-between md:justify-end gap-3 border-t md:border-t-0 border-border/40 pt-3 md:pt-0">
                       <div className="text-left md:text-right">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Cuota</p>
-                        <p className={cn("text-2xl font-display font-bold", isPaid ? "text-muted-foreground" : "text-foreground")}>
-                          {formatRD(inst.amount)}
-                        </p>
+                        {(inst as any).paidAmount > 0 && inst.status !== "paid" ? (
+                          <>
+                            <p className={cn("text-2xl font-display font-bold", isPaid ? "text-muted-foreground" : "text-blue-400")}>
+                              {formatRD(inst.amount - (inst as any).paidAmount)}
+                            </p>
+                            <p className="text-[10px] text-blue-300/70 leading-tight">
+                              Abono: {formatRD((inst as any).paidAmount)} / {formatRD(inst.amount)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className={cn("text-2xl font-display font-bold", isPaid ? "text-muted-foreground" : "text-foreground")}>
+                            {formatRD(inst.amount)}
+                          </p>
+                        )}
                       </div>
 
                       {!selectMode && (
