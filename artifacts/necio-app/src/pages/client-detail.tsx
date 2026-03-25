@@ -115,6 +115,24 @@ export default function ClientDetail() {
     }
   };
 
+  const handleAvatarRemove = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/clients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ avatarUrl: null }),
+      });
+      if (!res.ok) throw new Error("Error al quitar foto");
+      setAvatarPreview(null);
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
+      toast({ title: "Foto eliminada", description: "La foto de perfil fue quitada." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo quitar la foto." });
+    }
+  };
+
   const handleCobradorAssign = async (cobradorId: number | null) => {
     setAssigningCobrador(true);
     try {
@@ -211,16 +229,14 @@ export default function ClientDetail() {
       <div className={cn("bg-card border rounded-3xl p-7 shadow-xl mb-6", statusCfg.border)}>
         <div className="flex flex-col md:flex-row gap-6 items-start justify-between">
           <div className="flex gap-5 items-start">
-            <div className="flex flex-col items-center gap-1">
-              <ClientAvatarUpload
-                name={client.name}
-                avatarUrl={(client as any).avatarUrl}
-                previewUrl={avatarPreview}
-                onFileSelected={handleAvatarChange}
-                uploading={avatarUploading}
-              />
-              <span className="text-[10px] text-muted-foreground">Toca para cambiar</span>
-            </div>
+            <ClientAvatarUpload
+              name={client.name}
+              avatarUrl={(client as any).avatarUrl}
+              previewUrl={avatarPreview}
+              onFileSelected={handleAvatarChange}
+              onRemove={handleAvatarRemove}
+              uploading={avatarUploading}
+            />
             <div>
               <div className="flex items-center gap-3 mb-1 flex-wrap">
                 <h1 className="text-2xl font-display font-bold text-foreground">{client.name}</h1>

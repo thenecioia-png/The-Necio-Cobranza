@@ -7,7 +7,7 @@ import {
   CheckCircle2, Clock, Wallet, TrendingUp, Camera,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ClientAvatar } from "@/components/client-avatar";
+import { ClientAvatar, PhotoLightbox, avatarSrc } from "@/components/client-avatar";
 
 const API = "/api";
 
@@ -78,6 +78,7 @@ export default function Cobradores() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Cobrador | null>(null);
   const [updatingAvatarId, setUpdatingAvatarId] = useState<number | null>(null);
+  const [lightboxCobrador, setLightboxCobrador] = useState<Cobrador | null>(null);
 
   const { data: cobradores = [], isLoading } = useQuery({
     queryKey: ["cobradores"],
@@ -143,6 +144,25 @@ export default function Cobradores() {
       toast({ title: "Foto actualizada", description: `La foto de ${cob.name} fue actualizada.` });
     } catch {
       toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la foto." });
+    } finally {
+      setUpdatingAvatarId(null);
+    }
+  };
+
+  const handleAvatarRemoveCobrador = async (cob: Cobrador) => {
+    setUpdatingAvatarId(cob.id);
+    try {
+      const res = await fetch(`${API}/cobradores/${cob.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ avatarUrl: null }),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["cobradores"] });
+      toast({ title: "Foto eliminada", description: `La foto de ${cob.name} fue quitada.` });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo quitar la foto." });
     } finally {
       setUpdatingAvatarId(null);
     }
@@ -224,31 +244,61 @@ export default function Cobradores() {
                   {/* Top row */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      {/* Clickable avatar to change photo */}
-                      <label className="relative cursor-pointer group shrink-0">
+                      {/* Avatar — click to view in large; small icon buttons to change/remove */}
+                      <div className="relative shrink-0 group/av">
                         {isUpdating ? (
                           <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center">
                             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                           </div>
                         ) : (
-                          <>
+                          <button
+                            type="button"
+                            onClick={() => cob.avatarUrl && setLightboxCobrador(cob)}
+                            className={cn("block relative", cob.avatarUrl ? "cursor-pointer" : "cursor-default")}
+                            title={cob.avatarUrl ? "Ver foto en grande" : undefined}
+                          >
                             <ClientAvatar name={cob.name} avatarUrl={cob.avatarUrl} size="md" />
-                            <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Camera className="w-4 h-4 text-white" />
-                            </div>
-                          </>
+                            {cob.avatarUrl && (
+                              <div className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover/av:opacity-100 transition-opacity flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                </svg>
+                              </div>
+                            )}
+                          </button>
                         )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (file) handleAvatarUpdate(cob, file);
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
+                        {/* Floating photo action buttons */}
+                        {!isUpdating && (
+                          <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1 opacity-0 group-hover/av:opacity-100 transition-opacity z-10">
+                            <label
+                              className="cursor-pointer bg-primary text-white rounded-full p-1 shadow-md hover:bg-primary/80 transition-colors"
+                              title="Cambiar foto"
+                            >
+                              <Camera className="w-3 h-3" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleAvatarUpdate(cob, file);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                            {cob.avatarUrl && (
+                              <button
+                                type="button"
+                                onClick={() => handleAvatarRemoveCobrador(cob)}
+                                className="bg-destructive text-white rounded-full p-1 shadow-md hover:bg-destructive/80 transition-colors"
+                                title="Quitar foto"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <div>
                         <h3 className="font-bold text-lg leading-tight">{cob.name}</h3>
                         <p className="text-xs text-muted-foreground font-mono">@{cob.username}</p>
@@ -475,6 +525,14 @@ export default function Cobradores() {
           </>
         )}
       </AnimatePresence>
+
+      {lightboxCobrador && lightboxCobrador.avatarUrl && (
+        <PhotoLightbox
+          src={avatarSrc(lightboxCobrador.avatarUrl)}
+          alt={lightboxCobrador.name}
+          onClose={() => setLightboxCobrador(null)}
+        />
+      )}
     </div>
   );
 }
