@@ -4,6 +4,8 @@ import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-rea
 import { useQueryClient } from "@tanstack/react-query";
 import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, CreditCard, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { OfflineBanner } from "@/components/offline-banner";
+import { useNetworkStatus } from "@/hooks/use-network-status";
 
 const ADMIN_ONLY = ["/dashboard", "/cobradores", "/billing"];
 
@@ -183,13 +185,21 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
+  const { status } = useNetworkStatus();
+  const isOfflineOrSyncing = status === "offline" || status === "syncing";
+
   return (
     <div className="min-h-screen bg-background flex">
+      <OfflineBanner />
+
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Mobile top bar — only renders on small screens */}
       {!isDesktop && (
-        <div className="fixed top-0 left-0 right-0 z-30 h-14 bg-card border-b border-border flex items-center px-4 gap-3 shadow-md">
+        <div className={cn(
+          "fixed left-0 right-0 z-30 h-14 bg-card border-b border-border flex items-center px-4 gap-3 shadow-md transition-all duration-300",
+          isOfflineOrSyncing ? "top-9" : "top-0"
+        )}>
           <button
             onClick={() => setSidebarOpen(true)}
             aria-label="Abrir menú"
@@ -206,7 +216,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className={cn("flex-1 min-h-screen overflow-x-hidden", isDesktop ? "ml-64" : "pt-14")}>
+      <main className={cn(
+        "flex-1 min-h-screen overflow-x-hidden transition-all duration-300",
+        isDesktop ? "ml-64" : isOfflineOrSyncing ? "pt-[92px]" : "pt-14"
+      )}>
         {children}
       </main>
     </div>
