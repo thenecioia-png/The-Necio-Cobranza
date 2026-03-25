@@ -40,7 +40,10 @@ export function ClientAvatar({
           target.style.display = "none";
           const parent = target.parentElement;
           if (parent) {
-            parent.innerHTML = `<div class="${sizeClass} rounded-2xl bg-gradient-to-br from-primary to-rose-900 flex items-center justify-center font-display font-bold text-white shadow-lg shrink-0">${initial}</div>`;
+            const fallback = document.createElement("div");
+            fallback.className = `${sizeClass} rounded-2xl bg-gradient-to-br from-primary to-rose-900 flex items-center justify-center font-display font-bold text-white shadow-lg shrink-0`;
+            fallback.textContent = initial;
+            parent.replaceChildren(fallback);
           }
         }}
       />
