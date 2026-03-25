@@ -19,7 +19,7 @@ export function encrypt(text: string | null | undefined): string | null | undefi
   if (!key) return text;
   try {
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv, { authTagLength: 16 });
     let encrypted = cipher.update(text, "utf8", "hex");
     encrypted += cipher.final("hex");
     const tag = cipher.getAuthTag().toString("hex");
@@ -38,7 +38,7 @@ export function decrypt(data: string | null | undefined): string | null | undefi
     const [ivHex, tagHex, encrypted] = payload.split(":");
     const iv = Buffer.from(ivHex, "hex");
     const tag = Buffer.from(tagHex, "hex");
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: 16 });
     decipher.setAuthTag(tag);
     let decrypted = decipher.update(encrypted, "hex", "utf8");
     decrypted += decipher.final("utf8");
