@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, CreditCard, Menu, X } from "lucide-react";
+import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, CreditCard, Menu, X, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/offline-banner";
 import { useNetworkStatus } from "@/hooks/use-network-status";
@@ -40,6 +40,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/today", label: "Cobros de Hoy", icon: CalendarCheck },
     { href: "/clients", label: "Clientes", icon: Users },
+    { href: "/expenses", label: "Gastos", icon: Receipt },
     ...(user?.role === "admin" ? [
       { href: "/cobradores", label: "Cobradores", icon: UserCog },
       { href: "/billing", label: "Facturación", icon: CreditCard },

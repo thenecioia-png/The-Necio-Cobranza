@@ -11,6 +11,7 @@ import stripeRouter from "./stripe";
 import notificationsRouter from "./notifications";
 import backupRouter from "./backup";
 import contractsRouter from "./contracts";
+import expensesRouter from "./expenses";
 import { getUncachableStripeClient } from "../lib/stripe";
 
 const router: IRouter = Router();
@@ -50,5 +51,6 @@ router.use("/stripe", stripeRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/backup", backupRouter);
 router.use("/contracts", contractsRouter);
+router.use("/expenses", expensesRouter);
 
 export default router;

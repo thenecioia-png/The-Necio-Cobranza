@@ -5,3 +5,4 @@ export * from "./loans";
 export * from "./installments";
 export * from "./backup_settings";
 export * from "./loan_contracts";
+export * from "./expenses";
