@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CreditCard, CheckCircle2, Zap, Building2, Shield, ArrowRight, Loader2, X, Bell, MessageCircle, Send, Download, Mail, HardDrive, ChevronDown } from "lucide-react";
+import { CreditCard, CheckCircle2, Zap, Building2, Shield, ArrowRight, Loader2, X, Bell, MessageCircle, Send, Download, Mail, HardDrive } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -79,7 +79,6 @@ export default function Billing() {
   });
   const [backupSaving, setBackupSaving] = useState(false);
   const [backupSending, setBackupSending] = useState(false);
-  const [downloadOpen, setDownloadOpen] = useState(false);
 
   const { toast } = useToast();
 
@@ -154,9 +153,8 @@ export default function Billing() {
     }
   };
 
-  const handleDownload = (type: "clientes" | "prestamos" | "cuotas") => {
-    setDownloadOpen(false);
-    window.location.href = `${API_BASE}/backup/download?type=${type}`;
+  const handleDownload = () => {
+    window.location.href = `${API_BASE}/backup/download`;
   };
 
   const handleUpgrade = async (plan: Plan) => {
@@ -475,30 +473,12 @@ export default function Billing() {
             <p className="text-sm text-muted-foreground">Exporta y envía tu cartera por correo electrónico</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setDownloadOpen(o => !o)}
-                className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl font-semibold text-sm transition-all"
-              >
-                <Download className="w-4 h-4" /> Descargar CSV <ChevronDown className="w-3 h-3" />
-              </button>
-              {downloadOpen && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setDownloadOpen(false)} />
-                  <div className="absolute right-0 top-full mt-1 z-30 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden min-w-[180px]">
-                    {(["clientes", "prestamos", "cuotas"] as const).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => handleDownload(t)}
-                        className="w-full text-left px-4 py-3 text-sm hover:bg-white/5 text-foreground transition-colors capitalize"
-                      >
-                        {t === "prestamos" ? "Préstamos" : t === "cuotas" ? "Cuotas / Pagos" : "Clientes"}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-xl font-semibold text-sm transition-all"
+            >
+              <Download className="w-4 h-4" /> Descargar Excel
+            </button>
           </div>
         </div>
 

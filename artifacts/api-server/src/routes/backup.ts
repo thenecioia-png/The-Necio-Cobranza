@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, clientsTable, loansTable, installmentsTable, backupSettingsTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import * as XLSX from "xlsx";
 
 const router: IRouter = Router();
 
@@ -10,24 +11,6 @@ async function getBusinessId(req: any): Promise<number | null> {
   if (!userId) return null;
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   return user?.businessId ?? null;
-}
-
-function toCsv(rows: Record<string, unknown>[]): string {
-  if (!rows.length) return "";
-  const headers = Object.keys(rows[0]);
-  const lines = [headers.join(",")];
-  for (const row of rows) {
-    const values = headers.map(h => {
-      const v = row[h];
-      if (v === null || v === undefined) return "";
-      const s = String(v);
-      return s.includes(",") || s.includes('"') || s.includes("\n")
-        ? `"${s.replace(/"/g, '""')}"`
-        : s;
-    });
-    lines.push(values.join(","));
-  }
-  return lines.join("\n");
 }
 
 function fmtDate(val: string | Date | null | undefined): string {
@@ -40,17 +23,41 @@ function fmtDate(val: string | Date | null | undefined): string {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+function fmtCurrency(val: number | string | null | undefined): string {
+  if (val === null || val === undefined || val === "") return "";
+  const n = Number(val);
+  return isNaN(n) ? "" : `RD$ ${n.toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function statusLabel(s: string): string {
+  const map: Record<string, string> = {
+    active: "Activo",
+    paid: "Pagado",
+    defaulted: "En mora",
+    pending: "Pendiente",
+    cancelled: "Cancelado",
+  };
+  return map[s] ?? s;
+}
+
+function freqLabel(f: string): string {
+  const map: Record<string, string> = {
+    daily: "Diaria",
+    weekly: "Semanal",
+    biweekly: "Quincenal",
+    monthly: "Mensual",
+  };
+  return map[f] ?? f;
+}
+
 async function generateBackupData(businessId: number) {
-  // Fetch clients for this business
   const clients = await db
     .select()
     .from(clientsTable)
     .where(eq(clientsTable.businessId, businessId));
 
-  // Build lookup map: clientId -> client
   const clientMap = new Map(clients.map(c => [c.id, c]));
 
-  // Loans — filter by clientIds
   const clientIds = clients.map(c => c.id);
   const loans = clientIds.length > 0
     ? await db
@@ -61,12 +68,10 @@ async function generateBackupData(businessId: number) {
           : inArray(loansTable.clientId, clientIds))
     : [];
 
-  // Build lookup map: loanId -> loan
   const loanMap = new Map(loans.map(l => [l.id, l]));
 
-  // Installments filtered by loanIds
   const loanIds = loans.map(l => l.id);
-  const filteredInstallments = loanIds.length > 0
+  const installments = loanIds.length > 0
     ? await db
         .select()
         .from(installmentsTable)
@@ -75,7 +80,46 @@ async function generateBackupData(businessId: number) {
           : inArray(installmentsTable.loanId, loanIds))
     : [];
 
-  const clientsCsv = toCsv(clients.map(c => ({
+  return { clients, clientMap, loans, loanMap, installments };
+}
+
+function buildExcel(data: Awaited<ReturnType<typeof generateBackupData>>): Buffer {
+  const { clients, clientMap, loans, loanMap, installments } = data;
+  const wb = XLSX.utils.book_new();
+
+  // ── HOJA 1: RESUMEN GENERAL ──────────────────────────────────────────────
+  const resumenRows = loans.map(l => {
+    const client = clientMap.get(l.clientId);
+    const loanInstallments = installments.filter(i => i.loanId === l.id);
+    const pagadas = loanInstallments.filter(i => i.status === "paid").length;
+    const pendientes = loanInstallments.filter(i => i.status === "pending").length;
+    const montoPagado = loanInstallments
+      .filter(i => i.status === "paid")
+      .reduce((acc, i) => acc + Number(i.amount), 0);
+    const saldoPendiente = Number(l.totalAmount) - montoPagado;
+
+    return {
+      "Cliente": client?.name ?? "",
+      "Cédula": client?.cedula ?? "",
+      "Teléfono": client?.phone ?? "",
+      "Monto Prestado": Number(l.amount),
+      "Total a Pagar": Number(l.totalAmount),
+      "Monto Pagado": montoPagado,
+      "Saldo Pendiente": saldoPendiente,
+      "Cuotas Pagadas": pagadas,
+      "Cuotas Pendientes": pendientes,
+      "Total Cuotas": l.installmentsCount,
+      "Frecuencia": freqLabel(l.frequency),
+      "Fecha Inicio": fmtDate(l.startDate),
+      "Estado Préstamo": statusLabel(l.status),
+    };
+  });
+
+  const wsResumen = XLSX.utils.json_to_sheet(resumenRows.length ? resumenRows : [{ "Sin datos": "" }]);
+  XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen General");
+
+  // ── HOJA 2: CLIENTES ─────────────────────────────────────────────────────
+  const clientRows = clients.map(c => ({
     "Nombre": c.name,
     "Apodo": c.apodo ?? "",
     "Cédula": c.cedula ?? "",
@@ -84,51 +128,66 @@ async function generateBackupData(businessId: number) {
     "Dirección": c.address ?? "",
     "Sector": c.sector ?? "",
     "Ciudad": c.ciudad ?? "",
-    "Estado": c.status,
-    "Riesgo": c.riskScore,
+    "Estado": statusLabel(c.status),
+    "Riesgo": c.riskScore ?? "",
     "Notas": c.notes ?? "",
     "Fecha de Registro": fmtDate(c.createdAt),
-  })));
+  }));
 
-  const loansCsv = toCsv(loans.map(l => {
+  const wsClientes = XLSX.utils.json_to_sheet(clientRows.length ? clientRows : [{ "Sin datos": "" }]);
+  XLSX.utils.book_append_sheet(wb, wsClientes, "Clientes");
+
+  // ── HOJA 3: PRÉSTAMOS ────────────────────────────────────────────────────
+  const loanRows = loans.map(l => {
     const client = clientMap.get(l.clientId);
     return {
       "Cliente": client?.name ?? "",
       "Cédula Cliente": client?.cedula ?? "",
       "Monto Prestado": Number(l.amount),
       "Tasa de Interés (%)": Number(l.interestRate),
-      "Número de Cuotas": l.installmentsCount,
-      "Frecuencia": l.frequency,
-      "Fecha de Inicio": fmtDate(l.startDate),
       "Monto Total a Pagar": Number(l.totalAmount),
-      "Estado": l.status,
+      "Número de Cuotas": l.installmentsCount,
+      "Monto por Cuota": l.installmentsCount > 0
+        ? Math.round((Number(l.totalAmount) / l.installmentsCount) * 100) / 100
+        : 0,
+      "Frecuencia": freqLabel(l.frequency),
+      "Fecha de Inicio": fmtDate(l.startDate),
+      "Estado": statusLabel(l.status),
       "Fecha de Creación": fmtDate(l.createdAt),
     };
-  }));
+  });
 
-  const installmentsCsv = toCsv(filteredInstallments.map(i => {
+  const wsPrestamos = XLSX.utils.json_to_sheet(loanRows.length ? loanRows : [{ "Sin datos": "" }]);
+  XLSX.utils.book_append_sheet(wb, wsPrestamos, "Préstamos");
+
+  // ── HOJA 4: CUOTAS ───────────────────────────────────────────────────────
+  const cuotaRows = installments.map(i => {
     const loan = loanMap.get(i.loanId);
     const client = loan ? clientMap.get(loan.clientId) : undefined;
     return {
       "Cliente": client?.name ?? "",
-      "Cédula Cliente": client?.cedula ?? "",
-      "Monto Deuda Total": loan ? Number(loan.totalAmount) : "",
+      "Cédula": client?.cedula ?? "",
+      "Teléfono": client?.phone ?? "",
       "Monto Cuota": Number(i.amount),
       "Fecha de Vencimiento": fmtDate(i.dueDate),
       "Fecha de Pago": fmtDate(i.paidAt),
       "Método de Pago": i.paymentMethod ?? "",
-      "Estado": i.status,
+      "Estado": statusLabel(i.status),
     };
-  }));
+  });
 
-  return { clientsCsv, loansCsv, installmentsCsv, clients, loans, installments: filteredInstallments };
+  const wsCuotas = XLSX.utils.json_to_sheet(cuotaRows.length ? cuotaRows : [{ "Sin datos": "" }]);
+  XLSX.utils.book_append_sheet(wb, wsCuotas, "Cuotas");
+
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
 async function sendBackupEmail(
   to: string,
   smtpUser: string,
   smtpPass: string,
-  data: { clientsCsv: string; loansCsv: string; installmentsCsv: string }
+  excelBuffer: Buffer,
+  dateLabel: string
 ) {
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -137,30 +196,31 @@ async function sendBackupEmail(
     auth: { user: smtpUser, pass: smtpPass },
   });
 
-  const now = new Date().toLocaleDateString("es-DO", { year: "numeric", month: "long", day: "numeric" });
-
   await transporter.sendMail({
     from: `"The Necio Cobranza" <${smtpUser}>`,
     to,
-    subject: `Respaldo de datos – ${now}`,
-    text: `Adjunto encontrará el respaldo de datos de su cartera al ${now}.`,
+    subject: `Respaldo de datos – ${dateLabel}`,
+    text: `Adjunto encontrará el respaldo completo de su cartera al ${dateLabel}.`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px;">
         <h2 style="color: #e11d48;">The Necio Cobranza</h2>
-        <p>Respaldo de datos generado el <strong>${now}</strong>.</p>
-        <p>Se incluyen 3 archivos CSV:</p>
+        <p>Respaldo de datos generado el <strong>${dateLabel}</strong>.</p>
+        <p>El archivo Excel adjunto contiene 4 hojas:</p>
         <ul>
-          <li><strong>clientes.csv</strong> – Lista de clientes registrados</li>
-          <li><strong>prestamos.csv</strong> – Préstamos activos y cerrados</li>
-          <li><strong>cuotas.csv</strong> – Historial de cuotas y pagos</li>
+          <li><strong>Resumen General</strong> – Vista rápida de todos los préstamos con saldo pendiente</li>
+          <li><strong>Clientes</strong> – Información completa de cada cliente</li>
+          <li><strong>Préstamos</strong> – Detalle de cada préstamo otorgado</li>
+          <li><strong>Cuotas</strong> – Historial completo de cuotas y pagos</li>
         </ul>
         <p style="color: #6b7280; font-size: 12px;">Este correo fue enviado automáticamente por The Necio Cobranza.</p>
       </div>
     `,
     attachments: [
-      { filename: "clientes.csv", content: data.clientsCsv, contentType: "text/csv" },
-      { filename: "prestamos.csv", content: data.loansCsv, contentType: "text/csv" },
-      { filename: "cuotas.csv", content: data.installmentsCsv, contentType: "text/csv" },
+      {
+        filename: `respaldo-necio-${dateLabel.replace(/\s/g, "-")}.xlsx`,
+        content: excelBuffer,
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
     ],
   });
 }
@@ -251,7 +311,9 @@ router.post("/send", async (req: any, res) => {
 
   try {
     const data = await generateBackupData(businessId);
-    await sendBackupEmail(settings.email, settings.smtpUser, settings.smtpPass, data);
+    const excelBuffer = buildExcel(data);
+    const dateLabel = new Date().toLocaleDateString("es-DO", { year: "numeric", month: "long", day: "numeric" });
+    await sendBackupEmail(settings.email, settings.smtpUser, settings.smtpPass, excelBuffer, dateLabel);
 
     await db
       .update(backupSettingsTable)
@@ -265,26 +327,19 @@ router.post("/send", async (req: any, res) => {
   }
 });
 
-// GET /api/backup/download?type=clientes|prestamos|cuotas
+// GET /api/backup/download – download full Excel report
 router.get("/download", async (req: any, res) => {
   const businessId = await getBusinessId(req);
   if (!businessId) return res.status(401).json({ error: "No autenticado" });
 
-  const type = (req.query.type as string) || "clientes";
   const data = await generateBackupData(businessId);
+  const excelBuffer = buildExcel(data);
+  const dateStr = new Date().toISOString().split("T")[0];
+  const filename = `respaldo-necio-${dateStr}.xlsx`;
 
-  const csvMap: Record<string, string> = {
-    clientes: data.clientsCsv,
-    prestamos: data.loansCsv,
-    cuotas: data.installmentsCsv,
-  };
-
-  const csv = csvMap[type] || data.clientsCsv;
-  const filename = `${type}-${new Date().toISOString().split("T")[0]}.csv`;
-
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.send("\uFEFF" + csv);
+  res.send(excelBuffer);
 });
 
 export default router;
