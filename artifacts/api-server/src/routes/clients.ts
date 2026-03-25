@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, clientsTable, loansTable, installmentsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { CreateClientBody, GetClientParams, UpdateClientBody, UpdateClientParams } from "@workspace/api-zod";
 import { decrypt, encrypt, isEncryptionEnabled } from "../lib/encryption";
 
@@ -168,7 +168,54 @@ router.get("/:id", async (req, res) => {
   }
 
   const r = rows[0];
-  res.json(mapClient(r.client, r.cobrador?.id ? r.cobrador : null));
+
+  // Fetch loans + installments for this client
+  const loans = await db
+    .select()
+    .from(loansTable)
+    .where(eq(loansTable.clientId, parsed.data.id))
+    .orderBy(loansTable.createdAt);
+
+  const installments = loans.length > 0
+    ? await db
+        .select()
+        .from(installmentsTable)
+        .where(
+          loans.length === 1
+            ? eq(installmentsTable.loanId, loans[0].id)
+            : inArray(installmentsTable.loanId, loans.map(l => l.id))
+        )
+        .orderBy(installmentsTable.dueDate)
+    : [];
+
+  const loansWithInstallments = loans.map(loan => ({
+    id: loan.id,
+    clientId: loan.clientId,
+    amount: Number(loan.amount),
+    interestRate: Number(loan.interestRate),
+    installmentsCount: loan.installmentsCount,
+    startDate: loan.startDate,
+    frequency: loan.frequency,
+    totalAmount: Number(loan.totalAmount),
+    status: loan.status,
+    createdAt: loan.createdAt,
+    installments: installments
+      .filter(i => i.loanId === loan.id)
+      .map(i => ({
+        id: i.id,
+        loanId: i.loanId,
+        amount: Number(i.amount),
+        dueDate: i.dueDate,
+        status: i.status,
+        paidAt: i.paidAt,
+        paymentMethod: i.paymentMethod,
+      })),
+  }));
+
+  res.json({
+    ...mapClient(r.client, r.cobrador?.id ? r.cobrador : null),
+    loans: loansWithInstallments,
+  });
 });
 
 export default router;
