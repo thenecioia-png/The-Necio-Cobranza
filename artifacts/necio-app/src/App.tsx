@@ -16,6 +16,7 @@ import Cobradores from "./pages/cobradores";
 import Billing from "./pages/billing";
 import Expenses from "./pages/expenses";
 import { AuthGuard } from "./components/layout";
+import { PwaInstallBanner } from "./components/pwa-install-banner";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,7 @@ function App() {
           <Router />
         </WouterRouter>
         <Toaster />
+        <PwaInstallBanner />
       </TooltipProvider>
     </QueryClientProvider>
   );
