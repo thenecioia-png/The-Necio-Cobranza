@@ -2,6 +2,16 @@ import { cn } from "@/lib/utils";
 
 const API_BASE = "/api";
 
+// The avatarUrl stored in the DB starts with "/objects/", but the storage
+// route already adds that prefix. Strip it to avoid a doubled path like
+// /api/storage/objects/objects/uploads/...
+function avatarSrc(avatarUrl: string): string {
+  const key = avatarUrl.startsWith("/objects/")
+    ? avatarUrl.slice("/objects/".length)
+    : avatarUrl;
+  return `${API_BASE}/storage/objects/${key}`;
+}
+
 // Reusable client avatar — shows photo if available, else colored initial
 export function ClientAvatar({
   name,
@@ -26,7 +36,7 @@ export function ClientAvatar({
   if (avatarUrl) {
     return (
       <img
-        src={`${API_BASE}/storage/objects/${avatarUrl}`}
+        src={avatarSrc(avatarUrl)}
         alt={name}
         className={cn(
           sizeClass,
@@ -92,7 +102,7 @@ export function ClientAvatarUpload({
   uploading?: boolean;
   previewUrl?: string | null;
 }) {
-  const displayUrl = previewUrl ?? (avatarUrl ? `${API_BASE}/storage/objects/${avatarUrl}` : null);
+  const displayUrl = previewUrl ?? (avatarUrl ? avatarSrc(avatarUrl) : null);
   const initial = name.charAt(0).toUpperCase();
 
   const colors = [
