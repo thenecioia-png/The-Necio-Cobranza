@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatRD, cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
   Users, Plus, Trash2, Loader2, X, User, KeyRound,
-  CheckCircle2, Clock, Wallet, TrendingUp,
+  CheckCircle2, Clock, Wallet, TrendingUp, Camera,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ClientAvatar } from "@/components/client-avatar";
 
 const API = "/api";
 
@@ -22,6 +23,7 @@ interface Cobrador {
   username: string;
   name: string;
   role: string;
+  avatarUrl: string | null;
   createdAt: string;
   stats: CobradorStats;
 }
@@ -42,21 +44,53 @@ function StatBadge({ icon: Icon, label, value, color }: { icon: any; label: stri
   );
 }
 
+async function uploadAvatar(file: File): Promise<string | null> {
+  try {
+    const urlRes = await fetch(`${API}/storage/uploads/request-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+    });
+    if (!urlRes.ok) return null;
+    const { uploadURL, objectPath } = await urlRes.json();
+    const putRes = await fetch(uploadURL, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!putRes.ok) return null;
+    return objectPath as string;
+  } catch {
+    return null;
+  }
+}
+
 export default function Cobradores() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", username: "", password: "" });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Cobrador | null>(null);
+  const [updatingAvatarId, setUpdatingAvatarId] = useState<number | null>(null);
 
   const { data: cobradores = [], isLoading } = useQuery({
     queryKey: ["cobradores"],
     queryFn: fetchCobradores,
     refetchInterval: 30_000,
   });
+
+  const handleAvatarFileSelected = (file: File) => {
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = e => setAvatarPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,11 +100,17 @@ export default function Cobradores() {
     }
     setCreating(true);
     try {
+      let avatarUrl: string | undefined;
+      if (avatarFile) {
+        const path = await uploadAvatar(avatarFile);
+        if (path) avatarUrl = path;
+      }
+
       const res = await fetch(`${API}/cobradores`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, avatarUrl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -78,10 +118,33 @@ export default function Cobradores() {
       toast({ title: "¡Cobrador creado!", description: `${data.name} ya puede iniciar sesión.` });
       setShowCreate(false);
       setForm({ name: "", username: "", password: "" });
+      setAvatarFile(null);
+      setAvatarPreview(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleAvatarUpdate = async (cob: Cobrador, file: File) => {
+    setUpdatingAvatarId(cob.id);
+    try {
+      const path = await uploadAvatar(file);
+      if (!path) throw new Error("No se pudo subir la foto");
+      const res = await fetch(`${API}/cobradores/${cob.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ avatarUrl: path }),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["cobradores"] });
+      toast({ title: "Foto actualizada", description: `La foto de ${cob.name} fue actualizada.` });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la foto." });
+    } finally {
+      setUpdatingAvatarId(null);
     }
   };
 
@@ -147,6 +210,7 @@ export default function Cobradores() {
               const pct = cob.stats.totalHoy > 0
                 ? Math.round((cob.stats.cobradoHoy / cob.stats.totalHoy) * 100)
                 : 0;
+              const isUpdating = updatingAvatarId === cob.id;
 
               return (
                 <motion.div
@@ -160,9 +224,31 @@ export default function Cobradores() {
                   {/* Top row */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-rose-900 flex items-center justify-center text-xl font-display text-white shadow-lg">
-                        {cob.name.charAt(0).toUpperCase()}
-                      </div>
+                      {/* Clickable avatar to change photo */}
+                      <label className="relative cursor-pointer group shrink-0">
+                        {isUpdating ? (
+                          <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center">
+                            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : (
+                          <>
+                            <ClientAvatar name={cob.name} avatarUrl={cob.avatarUrl} size="md" />
+                            <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Camera className="w-4 h-4 text-white" />
+                            </div>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) handleAvatarUpdate(cob, file);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
                       <div>
                         <h3 className="font-bold text-lg leading-tight">{cob.name}</h3>
                         <p className="text-xs text-muted-foreground font-mono">@{cob.username}</p>
@@ -239,6 +325,36 @@ export default function Cobradores() {
                 </div>
 
                 <form onSubmit={handleCreate} className="space-y-4">
+                  {/* Avatar upload */}
+                  <div className="flex justify-center">
+                    <label className="relative cursor-pointer group">
+                      {avatarPreview ? (
+                        <img
+                          src={avatarPreview}
+                          alt="Preview"
+                          className="w-20 h-20 rounded-2xl object-cover shadow-lg"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-rose-900 flex flex-col items-center justify-center gap-1 shadow-lg">
+                          <Camera className="w-6 h-6 text-white/80" />
+                          <span className="text-white/70 text-[10px] font-semibold">Foto</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleAvatarFileSelected(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
                       Nombre completo

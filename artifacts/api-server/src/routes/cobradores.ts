@@ -72,6 +72,7 @@ router.get("/", requireAdmin, async (req, res) => {
       username: cob.username,
       name: cob.name,
       role: cob.role,
+      avatarUrl: cob.avatarUrl ?? null,
       createdAt: cob.createdAt.toISOString(),
       stats: { clientCount: Number(clientCount), cuotasHoy, totalHoy, cobradoHoy },
     };
@@ -83,7 +84,7 @@ router.get("/", requireAdmin, async (req, res) => {
 // POST /api/cobradores — create cobrador in same business as admin
 router.post("/", requireAdmin, async (req, res) => {
   const admin = await getAdminUser(req);
-  const { username, password, name } = req.body;
+  const { username, password, name, avatarUrl } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: "username, password y name son requeridos" });
     return;
@@ -100,6 +101,7 @@ router.post("/", requireAdmin, async (req, res) => {
     passwordHash: hashPassword(password),
     name,
     role: "cobrador",
+    avatarUrl: avatarUrl ?? null,
     businessId: admin?.businessId ?? null,
   }).returning();
 
@@ -108,6 +110,7 @@ router.post("/", requireAdmin, async (req, res) => {
     username: user.username,
     name: user.name,
     role: user.role,
+    avatarUrl: user.avatarUrl ?? null,
     createdAt: user.createdAt.toISOString(),
     stats: { clientCount: 0, cuotasHoy: 0, totalHoy: 0, cobradoHoy: 0 },
   });
@@ -116,11 +119,12 @@ router.post("/", requireAdmin, async (req, res) => {
 // PATCH /api/cobradores/:id
 router.patch("/:id", requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { name, password } = req.body;
+  const { name, password, avatarUrl } = req.body;
 
-  const updates: Record<string, string> = {};
+  const updates: Record<string, any> = {};
   if (name) updates.name = name;
   if (password) updates.passwordHash = hashPassword(password);
+  if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl ?? null;
 
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "Nada que actualizar" });
@@ -130,7 +134,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
   if (!updated) { res.status(404).json({ error: "Cobrador no encontrado" }); return; }
 
-  res.json({ id: updated.id, username: updated.username, name: updated.name, role: updated.role });
+  res.json({ id: updated.id, username: updated.username, name: updated.name, role: updated.role, avatarUrl: updated.avatarUrl ?? null });
 });
 
 // DELETE /api/cobradores/:id
