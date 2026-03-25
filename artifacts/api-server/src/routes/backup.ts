@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, clientsTable, loansTable, installmentsTable, backupSettingsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import nodemailer from "nodemailer";
 
 const router: IRouter = Router();
@@ -31,12 +31,33 @@ function toCsv(rows: Record<string, unknown>[]): string {
 }
 
 async function generateBackupData(businessId: number) {
-  const clients = await db.select().from(clientsTable).where(eq(clientsTable.businessId, businessId));
-  const loans = await db.select().from(loansTable).where(eq(loansTable.businessId, businessId));
-  const installments = await db.select().from(installmentsTable);
+  // Fetch clients for this business
+  const clients = await db
+    .select()
+    .from(clientsTable)
+    .where(eq(clientsTable.businessId, businessId));
 
-  const loanIds = new Set(loans.map(l => l.id));
-  const filteredInstallments = installments.filter(i => loanIds.has(i.loanId));
+  // Loans have no businessId column — filter by clientIds
+  const clientIds = clients.map(c => c.id);
+  const loans = clientIds.length > 0
+    ? await db
+        .select()
+        .from(loansTable)
+        .where(clientIds.length === 1
+          ? eq(loansTable.clientId, clientIds[0])
+          : inArray(loansTable.clientId, clientIds))
+    : [];
+
+  // Installments filtered by loanIds
+  const loanIds = loans.map(l => l.id);
+  const filteredInstallments = loanIds.length > 0
+    ? await db
+        .select()
+        .from(installmentsTable)
+        .where(loanIds.length === 1
+          ? eq(installmentsTable.loanId, loanIds[0])
+          : inArray(installmentsTable.loanId, loanIds))
+    : [];
 
   const clientsCsv = toCsv(clients.map(c => ({
     id: c.id,
@@ -57,12 +78,12 @@ async function generateBackupData(businessId: number) {
   const loansCsv = toCsv(loans.map(l => ({
     id: l.id,
     clienteId: l.clientId,
-    monto: l.amount,
-    tasaInteres: l.interestRate,
-    cuotas: l.installments,
+    monto: Number(l.amount),
+    tasaInteres: Number(l.interestRate),
+    numeroCuotas: l.installmentsCount,
     frecuencia: l.frequency,
-    montoTotal: l.totalAmount,
-    montoCuota: l.installmentAmount,
+    fechaInicio: l.startDate,
+    montoTotal: Number(l.totalAmount),
     estado: l.status,
     creado: l.createdAt?.toISOString() ?? "",
   })));
@@ -70,11 +91,10 @@ async function generateBackupData(businessId: number) {
   const installmentsCsv = toCsv(filteredInstallments.map(i => ({
     id: i.id,
     prestamoId: i.loanId,
-    numeroCuota: i.installmentNumber,
-    monto: i.amount,
-    montoPagado: i.amountPaid,
-    fechaVencimiento: i.dueDate?.toISOString() ?? "",
+    monto: Number(i.amount),
+    fechaVencimiento: i.dueDate,
     fechaPago: i.paidAt?.toISOString() ?? "",
+    metodoPago: i.paymentMethod ?? "",
     estado: i.status,
   })));
 
