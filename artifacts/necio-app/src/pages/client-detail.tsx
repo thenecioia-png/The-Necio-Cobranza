@@ -4,7 +4,7 @@ import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQuery
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
-import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, Navigation, UserCog, Loader2 } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap } from "lucide-react";
 import { ClientAvatarUpload } from "@/components/client-avatar";
 
 const API_BASE = "/api";
@@ -35,6 +35,17 @@ export default function ClientDetail() {
   const [assigningCobrador, setAssigningCobrador] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  // Abono modal state
+  const [abonoLoanId, setAbonoLoanId] = useState<number | null>(null);
+  const [abonoAmount, setAbonoAmount] = useState("");
+  const [abonoMethod, setAbonoMethod] = useState<"efectivo" | "transferencia" | "otro">("efectivo");
+  const [abonoLoading, setAbonoLoading] = useState(false);
+
+  // Liquidar modal state
+  const [liquidarLoan, setLiquidarLoan] = useState<null | { id: number; totalAmount: number; pendingAmount: number; pendingCount: number }>(null);
+  const [liquidarMethod, setLiquidarMethod] = useState<"efectivo" | "transferencia" | "otro">("efectivo");
+  const [liquidarLoading, setLiquidarLoading] = useState(false);
 
   const { data: client, isLoading, isError } = useGetClient(id);
   const { data: cobradores = [] } = useQuery({ queryKey: ["cobradores"], queryFn: fetchCobradores, staleTime: 60_000 });
@@ -119,6 +130,58 @@ export default function ClientDetail() {
       toast({ variant: "destructive", title: "Error", description: "No se pudo asignar el cobrador." });
     } finally {
       setAssigningCobrador(false);
+    }
+  };
+
+  const handleAbono = async () => {
+    if (!abonoLoanId || !abonoAmount || Number(abonoAmount) <= 0) return;
+    setAbonoLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/installments/abono-loan/${abonoLoanId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ amount: Number(abonoAmount), paymentMethod: abonoMethod }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+      toast({
+        title: data.loanCompleted ? "¡Préstamo Liquidado! 🎉" : `Abono registrado`,
+        description: data.loanCompleted
+          ? `Se pagaron ${data.paid} cuotas restantes. Préstamo completado.`
+          : `Se cubrieron ${data.paid} cuota(s) · ${formatRD(data.amountApplied)} aplicados`,
+      });
+      setAbonoLoanId(null);
+      setAbonoAmount("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo registrar el abono" });
+    } finally {
+      setAbonoLoading(false);
+    }
+  };
+
+  const handleLiquidar = async () => {
+    if (!liquidarLoan) return;
+    setLiquidarLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/installments/loan/${liquidarLoan.id}/liquidar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ paymentMethod: liquidarMethod }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+      toast({ title: "¡Préstamo Liquidado! 🎉", description: `${data.paid} cuotas pagadas · ${formatRD(data.totalAmount)} total` });
+      setLiquidarLoan(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo liquidar el préstamo" });
+    } finally {
+      setLiquidarLoading(false);
     }
   };
 
@@ -353,8 +416,33 @@ export default function ClientDetail() {
                       Interés: {loan.interestRate}% · Total: {formatRD(loan.totalAmount)} · {loan.frequency}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="flex flex-col items-end gap-2">
                     <p className="text-sm text-muted-foreground"><Calendar className="w-4 h-4 inline mr-1" />Inicio: {formatDate(loan.startDate)}</p>
+                    {!isCompleted && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setAbonoLoanId(loan.id);
+                            setAbonoAmount("");
+                            setAbonoMethod("efectivo");
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-bold transition-all"
+                        >
+                          <Banknote className="w-3.5 h-3.5" /> Abonar
+                        </button>
+                        <button
+                          onClick={() => {
+                            const pendingInsts = loan.installments.filter(i => i.status !== "paid");
+                            const pendingAmount = pendingInsts.reduce((s, i) => s + Number(i.amount), 0);
+                            setLiquidarLoan({ id: loan.id, totalAmount: Number(loan.totalAmount), pendingAmount, pendingCount: pendingInsts.length });
+                            setLiquidarMethod("efectivo");
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all"
+                        >
+                          <Zap className="w-3.5 h-3.5" /> Liquidar
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -395,6 +483,200 @@ export default function ClientDetail() {
               </div>
             );
           })}
+        </div>
+      )}
+      {/* ---- ABONO MODAL ---- */}
+      {abonoLoanId !== null && (() => {
+        const loan = client.loans.find(l => l.id === abonoLoanId);
+        if (!loan) return null;
+        const pending = loan.installments
+          .filter(i => i.status !== "paid")
+          .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+        const pendingTotal = pending.reduce((s, i) => s + Number(i.amount), 0);
+        const enteredAmount = Number(abonoAmount) || 0;
+
+        // Preview: simulate cascade
+        let sim = enteredAmount;
+        let wouldPay = 0;
+        let leftover = 0;
+        for (const inst of pending) {
+          const a = Number(inst.amount);
+          if (sim >= a) { wouldPay++; sim -= a; } else break;
+        }
+        leftover = sim;
+
+        const METHODS = [
+          { value: "efectivo", label: "💵 Efectivo" },
+          { value: "transferencia", label: "🏦 Transferencia" },
+          { value: "otro", label: "📋 Otro" },
+        ] as const;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={() => setAbonoLoanId(null)}>
+            <div className="bg-card border border-border rounded-3xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-blue-500/15">
+                    <Banknote className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-display font-bold">Abono / Pago Anticipado</h3>
+                    <p className="text-xs text-muted-foreground">{pending.length} cuota(s) pendientes · {formatRD(pendingTotal)}</p>
+                  </div>
+                </div>
+                <button onClick={() => setAbonoLoanId(null)} className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {/* Amount input */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Monto a abonar</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">RD$</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={abonoAmount}
+                      onChange={e => setAbonoAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-background border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white text-lg font-bold font-display focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  {/* Quick amount buttons */}
+                  {pending.length > 0 && (
+                    <div className="flex gap-2 mt-2.5 flex-wrap">
+                      {[1, 2, 3].filter(n => n <= pending.length).map(n => {
+                        const amt = pending.slice(0, n).reduce((s, i) => s + Number(i.amount), 0);
+                        return (
+                          <button key={n} onClick={() => setAbonoAmount(String(amt))}
+                            className="px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/20 transition-all">
+                            {n} cuota{n > 1 ? "s" : ""} · {formatRD(amt)}
+                          </button>
+                        );
+                      })}
+                      <button onClick={() => setAbonoAmount(String(pendingTotal))}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all">
+                        Todo · {formatRD(pendingTotal)}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Live preview */}
+                {enteredAmount > 0 && (
+                  <div className={cn(
+                    "rounded-2xl border p-4 text-sm space-y-1.5",
+                    wouldPay > 0 ? "bg-blue-500/5 border-blue-500/20" : "bg-destructive/5 border-destructive/20"
+                  )}>
+                    <p className="font-semibold text-foreground flex items-center gap-2">
+                      <TrendingDown className="w-4 h-4 text-blue-400" /> Vista previa
+                    </p>
+                    {wouldPay > 0 ? (
+                      <>
+                        <p className="text-muted-foreground">✅ Cubrirá <span className="text-white font-bold">{wouldPay} cuota{wouldPay > 1 ? "s" : ""}</span> (del {formatDate(pending[0].dueDate)} al {formatDate(pending[wouldPay - 1].dueDate)})</p>
+                        {leftover > 0 && <p className="text-amber-400 text-xs">⚠️ Sobrante {formatRD(leftover)} no se aplica a cuotas parciales</p>}
+                        {wouldPay === pending.length && <p className="text-emerald-400 font-bold">🎉 ¡Se liquidará el préstamo completo!</p>}
+                      </>
+                    ) : (
+                      <p className="text-destructive">El monto no alcanza para cubrir ni una cuota ({formatRD(Number(pending[0]?.amount))})</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Payment method */}
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Método de pago</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {METHODS.map(m => (
+                      <button key={m.value} onClick={() => setAbonoMethod(m.value)}
+                        className={cn("py-2.5 rounded-xl border text-xs font-bold transition-all",
+                          abonoMethod === m.value
+                            ? "bg-blue-500/20 border-blue-500 text-blue-300"
+                            : "bg-background border-border text-muted-foreground hover:border-blue-500/40"
+                        )}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAbono}
+                  disabled={abonoLoading || !abonoAmount || Number(abonoAmount) <= 0 || wouldPay === 0}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
+                >
+                  {abonoLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
+                  {abonoLoading ? "Registrando..." : `Registrar Abono · ${enteredAmount > 0 ? formatRD(enteredAmount - leftover) : "RD$0"}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ---- LIQUIDAR MODAL ---- */}
+      {liquidarLoan && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={() => setLiquidarLoan(null)}>
+          <div className="bg-card border border-emerald-500/30 rounded-3xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/15">
+                  <Zap className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-bold">Liquidar Préstamo</h3>
+                  <p className="text-xs text-muted-foreground">Pagar todas las cuotas restantes de una vez</p>
+                </div>
+              </div>
+              <button onClick={() => setLiquidarLoan(null)} className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 text-center">
+                <p className="text-sm text-muted-foreground mb-1">{liquidarLoan.pendingCount} cuotas pendientes</p>
+                <p className="text-4xl font-display font-bold text-emerald-400">{formatRD(liquidarLoan.pendingAmount)}</p>
+                <p className="text-xs text-muted-foreground mt-2">Monto total a pagar para liquidar</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Método de pago</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: "efectivo", label: "💵 Efectivo" },
+                    { value: "transferencia", label: "🏦 Transferencia" },
+                    { value: "otro", label: "📋 Otro" },
+                  ].map((m) => (
+                    <button key={m.value} onClick={() => setLiquidarMethod(m.value as any)}
+                      className={cn("py-2.5 rounded-xl border text-xs font-bold transition-all",
+                        liquidarMethod === m.value
+                          ? "bg-emerald-500/20 border-emerald-500 text-emerald-300"
+                          : "bg-background border-border text-muted-foreground hover:border-emerald-500/40"
+                      )}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setLiquidarLoan(null)}
+                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                  Cancelar
+                </button>
+                <button onClick={handleLiquidar} disabled={liquidarLoading}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                  {liquidarLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+                  {liquidarLoading ? "Procesando..." : "¡Liquidar Ahora!"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

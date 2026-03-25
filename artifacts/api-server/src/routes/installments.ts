@@ -258,4 +258,112 @@ router.post("/abono/:clientId", async (req, res) => {
   });
 });
 
+// Abono applied to a specific loan (not all client loans)
+router.post("/abono-loan/:loanId", async (req, res) => {
+  const loanId = Number(req.params.loanId);
+  const amount = Number(req.body?.amount);
+  const paymentMethod = ["efectivo", "transferencia", "otro"].includes(req.body?.paymentMethod)
+    ? req.body.paymentMethod : "efectivo";
+  const gpsLat = typeof req.body?.gpsLat === "number" ? req.body.gpsLat : null;
+  const gpsLng = typeof req.body?.gpsLng === "number" ? req.body.gpsLng : null;
+  const photoUrl = typeof req.body?.photoUrl === "string" ? req.body.photoUrl : null;
+  const userId = (req.session as any)?.userId as number | undefined;
+
+  if (isNaN(loanId) || isNaN(amount) || amount <= 0) {
+    res.status(400).json({ error: "Datos inválidos" });
+    return;
+  }
+
+  const pendingInstallments = await db
+    .select({ id: installmentsTable.id, amount: installmentsTable.amount, dueDate: installmentsTable.dueDate })
+    .from(installmentsTable)
+    .where(and(eq(installmentsTable.loanId, loanId), ne(installmentsTable.status, "paid")))
+    .orderBy(installmentsTable.dueDate);
+
+  if (pendingInstallments.length === 0) {
+    res.status(400).json({ error: "Este préstamo no tiene cuotas pendientes" });
+    return;
+  }
+
+  let remaining = amount;
+  const paidIds: number[] = [];
+
+  for (const inst of pendingInstallments) {
+    const instAmount = Number(inst.amount);
+    if (remaining >= instAmount) {
+      paidIds.push(inst.id);
+      remaining -= instAmount;
+    } else {
+      break;
+    }
+  }
+
+  let paidCount = 0;
+  if (paidIds.length > 0) {
+    const updated = await db
+      .update(installmentsTable)
+      .set({ status: "paid", paidAt: new Date(), paymentMethod, gpsLat, gpsLng, photoUrl, cobradorId: userId ?? null })
+      .where(inArray(installmentsTable.id, paidIds))
+      .returning();
+    paidCount = updated.length;
+  }
+
+  // Check if loan is now fully paid
+  const remaining2 = await db
+    .select({ id: installmentsTable.id })
+    .from(installmentsTable)
+    .where(and(eq(installmentsTable.loanId, loanId), ne(installmentsTable.status, "paid")))
+    .limit(1);
+
+  if (remaining2.length === 0) {
+    await db.update(loansTable).set({ status: "completed" }).where(eq(loansTable.id, loanId));
+  }
+
+  res.json({
+    paid: paidCount,
+    amountApplied: amount - remaining,
+    amountRemaining: Math.round(remaining * 100) / 100,
+    totalPending: pendingInstallments.length,
+    loanCompleted: remaining2.length === 0,
+  });
+});
+
+// Liquidar: pay all remaining installments of a loan
+router.post("/loan/:loanId/liquidar", async (req, res) => {
+  const loanId = Number(req.params.loanId);
+  const paymentMethod = ["efectivo", "transferencia", "otro"].includes(req.body?.paymentMethod)
+    ? req.body.paymentMethod : "efectivo";
+  const gpsLat = typeof req.body?.gpsLat === "number" ? req.body.gpsLat : null;
+  const gpsLng = typeof req.body?.gpsLng === "number" ? req.body.gpsLng : null;
+  const photoUrl = typeof req.body?.photoUrl === "string" ? req.body.photoUrl : null;
+  const userId = (req.session as any)?.userId as number | undefined;
+
+  if (isNaN(loanId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const pending = await db
+    .select({ id: installmentsTable.id, amount: installmentsTable.amount })
+    .from(installmentsTable)
+    .where(and(eq(installmentsTable.loanId, loanId), ne(installmentsTable.status, "paid")));
+
+  if (pending.length === 0) {
+    res.status(400).json({ error: "Este préstamo ya está liquidado" });
+    return;
+  }
+
+  const ids = pending.map(i => i.id);
+  const totalAmount = pending.reduce((s, i) => s + Number(i.amount), 0);
+
+  await db
+    .update(installmentsTable)
+    .set({ status: "paid", paidAt: new Date(), paymentMethod, gpsLat, gpsLng, photoUrl, cobradorId: userId ?? null })
+    .where(inArray(installmentsTable.id, ids));
+
+  await db.update(loansTable).set({ status: "completed" }).where(eq(loansTable.id, loanId));
+
+  res.json({ paid: ids.length, totalAmount });
+});
+
 export default router;
