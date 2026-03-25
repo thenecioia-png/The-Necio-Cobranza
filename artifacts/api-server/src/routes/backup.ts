@@ -179,13 +179,16 @@ router.post("/settings", async (req: any, res) => {
     .where(eq(backupSettingsTable.businessId, businessId))
     .limit(1);
 
+  // Strip all whitespace from App Password — Google displays it with spaces but they must be removed
+  const cleanedPass = smtpPass ? String(smtpPass).replace(/\s+/g, "") : smtpPass;
+
   const updates: any = {
     email,
     frequency,
     enabled: enabled !== false,
     updatedAt: new Date(),
     ...(smtpUser !== undefined ? { smtpUser } : {}),
-    ...(smtpPass ? { smtpPass } : {}),
+    ...(cleanedPass ? { smtpPass: cleanedPass } : {}),
   };
 
   if (existing) {
