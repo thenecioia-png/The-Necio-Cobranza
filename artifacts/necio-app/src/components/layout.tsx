@@ -149,6 +149,9 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       refetchOnWindowFocus: false
     }
   });
+  // Must be called before any conditional return — Rules of Hooks
+  const { status } = useNetworkStatus();
+  const isOfflineOrSyncing = status === "offline" || status === "syncing";
 
   useEffect(() => {
     if (!data) return;
@@ -184,9 +187,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       </div>
     );
   }
-
-  const { status } = useNetworkStatus();
-  const isOfflineOrSyncing = status === "offline" || status === "syncing";
 
   return (
     <div className="min-h-screen bg-background flex">

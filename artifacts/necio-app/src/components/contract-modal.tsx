@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, FileText, Shield, CheckCircle2, Loader2, Lock, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignaturePad } from "./signature-pad";
@@ -82,9 +82,9 @@ export function ContractModal({ loanId, clientName, onClose }: ContractModalProp
     URL.revokeObjectURL(url);
   };
 
-  if (step === "loading" && !contract) {
+  useEffect(() => {
     generate();
-  }
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
