@@ -17,6 +17,7 @@ import Billing from "./pages/billing";
 import Expenses from "./pages/expenses";
 import { AuthGuard } from "./components/layout";
 import { PwaInstallBanner } from "./components/pwa-install-banner";
+import { TutorialProvider } from "./components/tutorial";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +65,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <TutorialProvider>
+            <Router />
+          </TutorialProvider>
         </WouterRouter>
         <Toaster />
         <PwaInstallBanner />

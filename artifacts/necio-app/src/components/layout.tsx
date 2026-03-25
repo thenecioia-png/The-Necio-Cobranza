@@ -6,6 +6,7 @@ import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, Credit
 import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/offline-banner";
 import { useNetworkStatus } from "@/hooks/use-network-status";
+import { TutorialButton } from "@/components/tutorial";
 
 const ADMIN_ONLY = ["/dashboard", "/cobradores", "/billing"];
 
@@ -125,6 +126,8 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
               )}
             </div>
           </div>
+
+          <TutorialButton />
 
           <button
             onClick={() => logoutMutation.mutate()}
