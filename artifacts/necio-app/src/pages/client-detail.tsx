@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
+import { useGetClient, useUpdateClient, useGetMe, getGetClientQueryKey, getGetClientsQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
 import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap, Lock, FileText } from "lucide-react";
-import { ClientAvatarUpload } from "@/components/client-avatar";
+import { ClientAvatar, ClientAvatarUpload } from "@/components/client-avatar";
 import { ContractModal } from "@/components/contract-modal";
 
 const API_BASE = "/api";
@@ -49,6 +49,9 @@ export default function ClientDetail() {
   const [contractLoanId, setContractLoanId] = useState<number | null>(null);
   const [liquidarMethod, setLiquidarMethod] = useState<"efectivo" | "transferencia" | "otro">("efectivo");
   const [liquidarLoading, setLiquidarLoading] = useState(false);
+
+  const { data: me } = useGetMe({ query: { retry: false } });
+  const isAdmin = me?.role === "admin";
 
   const { data: client, isLoading, isError } = useGetClient(id);
   const { data: cobradores = [] } = useQuery({ queryKey: ["cobradores"], queryFn: fetchCobradores, staleTime: 60_000 });
