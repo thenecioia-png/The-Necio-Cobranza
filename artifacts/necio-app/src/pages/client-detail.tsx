@@ -4,8 +4,9 @@ import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQuery
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
-import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap, Lock, FileText } from "lucide-react";
 import { ClientAvatarUpload } from "@/components/client-avatar";
+import { ContractModal } from "@/components/contract-modal";
 
 const API_BASE = "/api";
 
@@ -44,6 +45,8 @@ export default function ClientDetail() {
 
   // Liquidar modal state
   const [liquidarLoan, setLiquidarLoan] = useState<null | { id: number; totalAmount: number; pendingAmount: number; pendingCount: number }>(null);
+  // Contract modal state
+  const [contractLoanId, setContractLoanId] = useState<number | null>(null);
   const [liquidarMethod, setLiquidarMethod] = useState<"efectivo" | "transferencia" | "otro">("efectivo");
   const [liquidarLoading, setLiquidarLoading] = useState(false);
 
@@ -230,7 +233,17 @@ export default function ClientDetail() {
                 </span>
               </div>
               <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2 text-sm text-muted-foreground">
-                {client.cedula && <span className="flex items-center gap-1.5"><User className="w-4 h-4 shrink-0" /> {client.cedula}</span>}
+                {client.cedula && (
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-4 h-4 shrink-0" />
+                    {client.cedula}
+                    {(client as any).encryptionEnabled && (
+                      <span title="Datos encriptados AES-256" className="flex items-center gap-0.5 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                        <Lock className="w-2.5 h-2.5" /> Cifrado
+                      </span>
+                    )}
+                  </span>
+                )}
                 {client.phone && (
                   <a href={`tel:${client.phone}`} className="flex items-center gap-1.5 hover:text-primary transition-colors">
                     <Phone className="w-4 h-4 shrink-0" /> {client.phone}
@@ -440,6 +453,12 @@ export default function ClientDetail() {
                           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition-all"
                         >
                           <Zap className="w-3.5 h-3.5" /> Liquidar
+                        </button>
+                        <button
+                          onClick={() => setContractLoanId(loan.id)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-bold transition-all"
+                        >
+                          <FileText className="w-3.5 h-3.5" /> Contrato
                         </button>
                       </div>
                     )}
@@ -678,6 +697,14 @@ export default function ClientDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {contractLoanId !== null && (
+        <ContractModal
+          loanId={contractLoanId}
+          clientName={client.name}
+          onClose={() => setContractLoanId(null)}
+        />
       )}
     </div>
   );

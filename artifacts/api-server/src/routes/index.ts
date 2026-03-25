@@ -10,6 +10,7 @@ import storageRouter from "./storage";
 import stripeRouter from "./stripe";
 import notificationsRouter from "./notifications";
 import backupRouter from "./backup";
+import contractsRouter from "./contracts";
 import { getUncachableStripeClient } from "../lib/stripe";
 
 const router: IRouter = Router();
@@ -48,5 +49,6 @@ router.use(storageRouter);
 router.use("/stripe", stripeRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/backup", backupRouter);
+router.use("/contracts", contractsRouter);
 
 export default router;
