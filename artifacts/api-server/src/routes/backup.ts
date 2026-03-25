@@ -30,6 +30,16 @@ function toCsv(rows: Record<string, unknown>[]): string {
   return lines.join("\n");
 }
 
+function fmtDate(val: string | Date | null | undefined): string {
+  if (!val) return "";
+  const d = typeof val === "string" ? new Date(val) : val;
+  if (isNaN(d.getTime())) return String(val);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 async function generateBackupData(businessId: number) {
   // Fetch clients for this business
   const clients = await db
@@ -37,7 +47,10 @@ async function generateBackupData(businessId: number) {
     .from(clientsTable)
     .where(eq(clientsTable.businessId, businessId));
 
-  // Loans have no businessId column — filter by clientIds
+  // Build lookup map: clientId -> client
+  const clientMap = new Map(clients.map(c => [c.id, c]));
+
+  // Loans — filter by clientIds
   const clientIds = clients.map(c => c.id);
   const loans = clientIds.length > 0
     ? await db
@@ -47,6 +60,9 @@ async function generateBackupData(businessId: number) {
           ? eq(loansTable.clientId, clientIds[0])
           : inArray(loansTable.clientId, clientIds))
     : [];
+
+  // Build lookup map: loanId -> loan
+  const loanMap = new Map(loans.map(l => [l.id, l]));
 
   // Installments filtered by loanIds
   const loanIds = loans.map(l => l.id);
@@ -60,43 +76,50 @@ async function generateBackupData(businessId: number) {
     : [];
 
   const clientsCsv = toCsv(clients.map(c => ({
-    id: c.id,
-    nombre: c.name,
-    apodo: c.apodo ?? "",
-    telefono: c.phone ?? "",
-    whatsapp: c.whatsapp ?? "",
-    direccion: c.address ?? "",
-    sector: c.sector ?? "",
-    ciudad: c.ciudad ?? "",
-    cedula: c.cedula ?? "",
-    estado: c.status,
-    riesgo: c.riskScore,
-    notas: c.notes ?? "",
-    creado: c.createdAt?.toISOString() ?? "",
+    "Nombre": c.name,
+    "Apodo": c.apodo ?? "",
+    "Cédula": c.cedula ?? "",
+    "Teléfono": c.phone ?? "",
+    "WhatsApp": c.whatsapp ?? "",
+    "Dirección": c.address ?? "",
+    "Sector": c.sector ?? "",
+    "Ciudad": c.ciudad ?? "",
+    "Estado": c.status,
+    "Riesgo": c.riskScore,
+    "Notas": c.notes ?? "",
+    "Fecha de Registro": fmtDate(c.createdAt),
   })));
 
-  const loansCsv = toCsv(loans.map(l => ({
-    id: l.id,
-    clienteId: l.clientId,
-    monto: Number(l.amount),
-    tasaInteres: Number(l.interestRate),
-    numeroCuotas: l.installmentsCount,
-    frecuencia: l.frequency,
-    fechaInicio: l.startDate,
-    montoTotal: Number(l.totalAmount),
-    estado: l.status,
-    creado: l.createdAt?.toISOString() ?? "",
-  })));
+  const loansCsv = toCsv(loans.map(l => {
+    const client = clientMap.get(l.clientId);
+    return {
+      "Cliente": client?.name ?? "",
+      "Cédula Cliente": client?.cedula ?? "",
+      "Monto Prestado": Number(l.amount),
+      "Tasa de Interés (%)": Number(l.interestRate),
+      "Número de Cuotas": l.installmentsCount,
+      "Frecuencia": l.frequency,
+      "Fecha de Inicio": fmtDate(l.startDate),
+      "Monto Total a Pagar": Number(l.totalAmount),
+      "Estado": l.status,
+      "Fecha de Creación": fmtDate(l.createdAt),
+    };
+  }));
 
-  const installmentsCsv = toCsv(filteredInstallments.map(i => ({
-    id: i.id,
-    prestamoId: i.loanId,
-    monto: Number(i.amount),
-    fechaVencimiento: i.dueDate,
-    fechaPago: i.paidAt?.toISOString() ?? "",
-    metodoPago: i.paymentMethod ?? "",
-    estado: i.status,
-  })));
+  const installmentsCsv = toCsv(filteredInstallments.map(i => {
+    const loan = loanMap.get(i.loanId);
+    const client = loan ? clientMap.get(loan.clientId) : undefined;
+    return {
+      "Cliente": client?.name ?? "",
+      "Cédula Cliente": client?.cedula ?? "",
+      "Monto Deuda Total": loan ? Number(loan.totalAmount) : "",
+      "Monto Cuota": Number(i.amount),
+      "Fecha de Vencimiento": fmtDate(i.dueDate),
+      "Fecha de Pago": fmtDate(i.paidAt),
+      "Método de Pago": i.paymentMethod ?? "",
+      "Estado": i.status,
+    };
+  }));
 
   return { clientsCsv, loansCsv, installmentsCsv, clients, loans, installments: filteredInstallments };
 }
