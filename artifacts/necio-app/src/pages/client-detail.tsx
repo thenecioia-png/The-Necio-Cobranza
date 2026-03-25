@@ -550,11 +550,12 @@ export default function ClientDetail() {
         let sim = enteredAmount;
         let wouldPay = 0;
         let partialLeftover = 0;
+        let allPaid = true;
         for (const inst of pending) {
           const due = Number(inst.amount) - Number((inst as any).paidAmount ?? 0);
-          if (sim >= due) { wouldPay++; sim -= due; } else { partialLeftover = sim; break; }
+          if (sim >= due) { wouldPay++; sim -= due; } else { partialLeftover = sim; allPaid = false; break; }
         }
-        const leftover = sim; // only > 0 if all pending paid
+        const leftover = allPaid ? sim : 0; // sobrante real solo cuando se pagan todas las cuotas
 
         const METHODS = [
           { value: "efectivo", label: "💵 Efectivo" },
@@ -662,7 +663,7 @@ export default function ClientDetail() {
 
                 <button
                   onClick={handleAbono}
-                  disabled={abonoLoading || !abonoAmount || Number(abonoAmount) <= 0 || wouldPay === 0}
+                  disabled={abonoLoading || !abonoAmount || Number(abonoAmount) <= 0}
                   className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg"
                 >
                   {abonoLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5" />}
