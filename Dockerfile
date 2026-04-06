@@ -18,7 +18,7 @@ COPY artifacts/api-server/package.json ./artifacts/api-server/
 COPY artifacts/necio-app/package.json ./artifacts/necio-app/
 
 # Instalar todas las dependencias (incluyendo devDeps para builds)
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Copiar el resto del código fuente
 COPY . .
@@ -46,7 +46,7 @@ COPY artifacts/api-server/package.json ./artifacts/api-server/
 COPY artifacts/necio-app/package.json ./artifacts/necio-app/
 
 # Solo dependencias de producción
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --no-frozen-lockfile --prod
 
 # Copiar artefactos compilados del builder
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
