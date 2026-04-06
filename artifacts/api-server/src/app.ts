@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieSession from "cookie-session";
 import pinoHttp from "pino-http";
+import path from "path";
+import fs from "fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -9,7 +11,7 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const app: Express = express();
 
-// Trust Replit's reverse proxy so secure cookies work over HTTPS
+// Trust reverse proxy so secure cookies work over HTTPS
 app.set("trust proxy", 1);
 
 app.use(
@@ -47,5 +49,17 @@ app.use(
 );
 
 app.use("/api", router);
+
+// Serve React frontend in production
+const frontendDist = process.env.FRONTEND_DIST
+  ? path.resolve(process.env.FRONTEND_DIST)
+  : path.resolve(__dirname, "../../necio-app/dist/public");
+
+if (isProduction && fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 export default app;

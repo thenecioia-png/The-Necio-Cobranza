@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable, clientsTable } from "@workspace/db";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, inArray } from "drizzle-orm";
 import { installmentsTable } from "@workspace/db";
 import { loansTable } from "@workspace/db";
 import crypto from "crypto";
@@ -59,7 +59,7 @@ router.get("/", requireAdmin, async (req, res) => {
         .innerJoin(loansTable, eq(installmentsTable.loanId, loansTable.id))
         .where(and(
           eq(installmentsTable.dueDate, today),
-          sql`${loansTable.clientId} = ANY(ARRAY[${sql.raw(clientIds.join(","))}]::int[])`
+          inArray(loansTable.clientId, clientIds)
         ));
 
       cuotasHoy = todayInstallments.length;

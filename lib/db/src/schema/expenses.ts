@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -26,15 +26,15 @@ export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   otro: "Otro",
 };
 
-export const expensesTable = pgTable("expenses", {
-  id: serial("id").primaryKey(),
+export const expensesTable = sqliteTable("expenses", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   businessId: integer("business_id").notNull(),
   category: text("category").notNull().default("otro"),
   description: text("description").notNull(),
-  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  amount: text("amount").notNull(),
   date: text("date").notNull(),
   notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()).notNull(),
 });
 
 export const insertExpenseSchema = createInsertSchema(expensesTable).omit({ id: true, createdAt: true });

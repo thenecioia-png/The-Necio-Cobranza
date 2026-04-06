@@ -1,14 +1,12 @@
-import Stripe from "stripe";
+/**
+ * Stripe eliminado — sistema de pagos reemplazado por transferencia bancaria manual.
+ * Este archivo existe solo para que las importaciones existentes no rompan la compilación.
+ */
 
-// Uses STRIPE_SECRET_KEY env var directly.
-// Set this secret when ready to enable Stripe payments.
-// No Replit connector dependency — safe to deploy without Stripe.
-export async function getUncachableStripeClient(): Promise<Stripe | null> {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  return new Stripe(key, { apiVersion: "2025-08-27.basil" as any });
+export async function getUncachableStripeClient(): Promise<null> {
+  return null;
 }
 
-export async function getStripePublishableKey(): Promise<string | null> {
-  return process.env.STRIPE_PUBLISHABLE_KEY ?? null;
+export async function getStripePublishableKey(): Promise<null> {
+  return null;
 }

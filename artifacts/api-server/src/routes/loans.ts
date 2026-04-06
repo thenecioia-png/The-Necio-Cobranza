@@ -6,6 +6,7 @@ const router: IRouter = Router();
 
 function generateInstallments(loan: {
   id: number;
+  clientId: number;
   amount: number;
   interestRate: number;
   installmentsCount: number;
@@ -31,6 +32,7 @@ function generateInstallments(loan: {
 
     installments.push({
       loanId: loan.id,
+      clientId: loan.clientId,
       dueDate: dueDate.toISOString().split("T")[0],
       amount: perInstallment.toFixed(2),
       status: "pending" as const,
@@ -62,6 +64,7 @@ router.post("/", async (req, res) => {
 
   const installmentValues = generateInstallments({
     id: loan.id,
+    clientId: data.clientId,
     amount: data.amount,
     interestRate: data.interestRate,
     installmentsCount: data.installmentsCount,

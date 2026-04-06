@@ -12,6 +12,7 @@ import notificationsRouter from "./notifications";
 import backupRouter from "./backup";
 import contractsRouter from "./contracts";
 import expensesRouter from "./expenses";
+import trackingRouter from "./tracking";
 import { getUncachableStripeClient } from "../lib/stripe";
 
 const router: IRouter = Router();
@@ -52,5 +53,6 @@ router.use("/notifications", notificationsRouter);
 router.use("/backup", backupRouter);
 router.use("/contracts", contractsRouter);
 router.use("/expenses", expensesRouter);
+router.use("/tracking", trackingRouter);
 
 export default router;

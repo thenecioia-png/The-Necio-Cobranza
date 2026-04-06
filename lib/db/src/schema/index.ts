@@ -6,3 +6,6 @@ export * from "./installments";
 export * from "./backup_settings";
 export * from "./loan_contracts";
 export * from "./expenses";
+export * from "./contabilidad";
+export * from "./pagos";
+export * from "./cobrador_locations";

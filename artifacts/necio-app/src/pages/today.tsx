@@ -40,6 +40,39 @@ export default function TodayInstallments() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Enviar ubicación GPS al servidor cada 30s para mapa de tracking
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    const sendPing = (lat: number, lng: number) => {
+      fetch("/api/tracking/ping", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng }),
+      }).catch(() => {/* silencioso si offline */});
+    };
+
+    let watchId: number;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        sendPing(pos.coords.latitude, pos.coords.longitude);
+        watchId = navigator.geolocation.watchPosition(
+          (p) => sendPing(p.coords.latitude, p.coords.longitude),
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 30_000 }
+        );
+      },
+      () => {}
+    );
+
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+      // Borrar ubicación del servidor al salir
+      fetch("/api/tracking/ping", { method: "DELETE", credentials: "include" }).catch(() => {});
+    };
+  }, []);
+
   useEffect(() => {
     const onOnline = () => {
       setIsOffline(false);

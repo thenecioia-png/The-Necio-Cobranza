@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/.git
+*.db
+*.db-shm
+*.db-wal
+artifacts/necio-app/dist
+artifacts/api-server/dist
+.env
+.env.*
+attached_assets
+replit.md

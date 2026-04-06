@@ -1,0 +1,29 @@
+# fly.toml — Necio Cobranza
+app = "necio-cobranza"
+primary_region = "mia"   # Miami — más cercano a RD
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  DB_PATH = "/data/necio_cobranza.db"
+  FRONTEND_DIST = "/app/artifacts/necio-app/dist/public"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Volumen persistente para la base de datos SQLite
+[[mounts]]
+  source = "necio_data"
+  destination = "/data"

@@ -15,6 +15,7 @@ import LoanCreate from "./pages/loan-create";
 import Cobradores from "./pages/cobradores";
 import Billing from "./pages/billing";
 import Expenses from "./pages/expenses";
+import Tracking from "./pages/tracking";
 import { AuthGuard } from "./components/layout";
 import { PwaInstallBanner } from "./components/pwa-install-banner";
 import { TutorialProvider } from "./components/tutorial";
@@ -53,6 +54,9 @@ function Router() {
       </Route>
       <Route path="/expenses">
         <AuthGuard><Expenses /></AuthGuard>
+      </Route>
+      <Route path="/tracking">
+        <AuthGuard><Tracking /></AuthGuard>
       </Route>
 
       <Route component={NotFound} />

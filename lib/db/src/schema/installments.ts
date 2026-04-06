@@ -1,21 +1,23 @@
-import { pgTable, text, serial, timestamp, integer, numeric, real } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { loansTable } from "./loans";
+import { clientsTable } from "./clients";
 
-export const installmentsTable = pgTable("installments", {
-  id: serial("id").primaryKey(),
+export const installmentsTable = sqliteTable("installments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   loanId: integer("loan_id").notNull().references(() => loansTable.id),
+  clientId: integer("client_id").references(() => clientsTable.id),
   dueDate: text("due_date").notNull(),
-  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  amount: text("amount").notNull(),
   status: text("status").notNull().default("pending"),
-  paidAt: timestamp("paid_at"),
+  paidAt: integer("paid_at", { mode: "timestamp" }),
   paymentMethod: text("payment_method").default("efectivo"),
   gpsLat: real("gps_lat"),
   gpsLng: real("gps_lng"),
   photoUrl: text("photo_url"),
   cobradorId: integer("cobrador_id"),
-  paidAmount: numeric("paid_amount", { precision: 12, scale: 2 }).default("0"),
+  paidAmount: text("paid_amount").default("0"),
 });
 
 export const insertInstallmentSchema = createInsertSchema(installmentsTable).omit({ id: true });

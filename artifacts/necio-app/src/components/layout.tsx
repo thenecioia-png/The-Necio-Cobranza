@@ -2,13 +2,13 @@ import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, CreditCard, Menu, X, Receipt } from "lucide-react";
+import { LayoutDashboard, CalendarCheck, Users, LogOut, Loader2, UserCog, CreditCard, Menu, X, Receipt, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/offline-banner";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { TutorialButton } from "@/components/tutorial";
 
-const ADMIN_ONLY = ["/dashboard", "/cobradores", "/billing"];
+const ADMIN_ONLY = ["/dashboard", "/cobradores", "/billing", "/tracking"];
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" ? window.innerWidth >= 768 : false);
@@ -44,6 +44,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     { href: "/expenses", label: "Gastos", icon: Receipt },
     ...(user?.role === "admin" ? [
       { href: "/cobradores", label: "Cobradores", icon: UserCog },
+      { href: "/tracking", label: "Mapa GPS", icon: MapPin },
       { href: "/billing", label: "Facturación", icon: CreditCard },
     ] : []),
   ];

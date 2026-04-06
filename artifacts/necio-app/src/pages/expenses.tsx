@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatRD } from "@/lib/utils";
 import { Plus, Pencil, Trash2, Fuel, UtensilsCrossed, Droplets, Wrench, Phone, Hammer, MoreHorizontal, Receipt } from "lucide-react";
 
-const API_BASE = import.meta.env.BASE_URL + "api";
+const API_BASE = "/api";
 
 const CATEGORIES = [
   { value: "gasolina", label: "Gasolina", icon: Fuel, color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20" },
