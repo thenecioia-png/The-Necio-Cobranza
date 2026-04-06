@@ -57,7 +57,7 @@ const frontendDist = process.env.FRONTEND_DIST
 
 if (isProduction && fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
-  app.get("*", (_req, res) => {
+  app.get("(.*)", (_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
