@@ -34,8 +34,8 @@ async function sendWhatsApp(twilioClient: any, to: string, body: string, from: s
 
 router.post("/whatsapp/payment-confirmation", requireAuth, async (req, res) => {
   try {
-    const { installmentId } = req.body as { installmentId: number };
-    if (!installmentId) return res.status(400).json({ error: "installmentId requerido" });
+    const installmentId = Number(req.body?.installmentId);
+    if (!installmentId || isNaN(installmentId)) return res.status(400).json({ error: "installmentId requerido" });
 
     const businessId = await getBusinessId(req);
     if (!businessId) return res.status(400).json({ error: "Negocio no encontrado" });
@@ -79,8 +79,8 @@ router.post("/whatsapp/payment-confirmation", requireAuth, async (req, res) => {
 
 router.post("/whatsapp/payment-reminder", requireAuth, async (req, res) => {
   try {
-    const { installmentId } = req.body as { installmentId: number };
-    if (!installmentId) return res.status(400).json({ error: "installmentId requerido" });
+    const installmentId = Number(req.body?.installmentId);
+    if (!installmentId || isNaN(installmentId)) return res.status(400).json({ error: "installmentId requerido" });
 
     const businessId = await getBusinessId(req);
     if (!businessId) return res.status(400).json({ error: "Negocio no encontrado" });

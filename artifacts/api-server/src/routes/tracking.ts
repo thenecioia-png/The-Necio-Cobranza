@@ -16,9 +16,10 @@ function requireAuth(req: any, res: any, next: any) {
 // POST /api/tracking/ping — cobrador actualiza su ubicación
 router.post("/ping", requireAuth, async (req, res) => {
   const userId = req.session.userId as number;
-  const { lat, lng } = req.body;
+  const lat = Number(req.body?.lat);
+  const lng = Number(req.body?.lng);
 
-  if (typeof lat !== "number" || typeof lng !== "number") {
+  if (isNaN(lat) || isNaN(lng)) {
     return res.status(400).json({ error: "lat y lng son requeridos" });
   }
 

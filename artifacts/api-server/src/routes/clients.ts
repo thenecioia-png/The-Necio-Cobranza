@@ -93,6 +93,7 @@ router.patch("/:id", async (req, res) => {
 
   const body = req.body;
   if (body.riskScore !== undefined) body.riskScore = Number(body.riskScore);
+  if (body.cobradorId !== undefined) body.cobradorId = body.cobradorId === "" ? null : Number(body.cobradorId);
   const bodyParsed = UpdateClientBody.safeParse(body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: "Datos inválidos" });
@@ -117,16 +118,16 @@ router.patch("/:id", async (req, res) => {
   if (data.notes !== undefined) updates.notes = data.notes;
   if (data.name !== undefined) updates.name = data.name;
   if (data.apodo !== undefined) updates.apodo = data.apodo;
-  if (body.phone !== undefined) updates.phone = encrypt(body.phone) ?? body.phone;
-  if (body.whatsapp !== undefined) updates.whatsapp = encrypt(body.whatsapp) ?? body.whatsapp;
-  if (body.address !== undefined) updates.address = body.address;
-  if (body.sector !== undefined) updates.sector = body.sector;
-  if (body.ciudad !== undefined) updates.ciudad = body.ciudad;
-  if (body.fiadorName !== undefined) updates.fiadorName = body.fiadorName;
-  if (body.fiadorPhone !== undefined) updates.fiadorPhone = encrypt(body.fiadorPhone) ?? body.fiadorPhone;
-  if (body.cobradorId !== undefined) updates.cobradorId = body.cobradorId ?? null;
-  if (body.avatarUrl !== undefined) updates.avatarUrl = body.avatarUrl ?? null;
-  if ((body as any).cedula !== undefined) updates.cedula = encrypt((body as any).cedula) ?? (body as any).cedula;
+  if (data.phone !== undefined) updates.phone = encrypt(data.phone) ?? data.phone;
+  if (data.whatsapp !== undefined) updates.whatsapp = encrypt(data.whatsapp) ?? data.whatsapp;
+  if (data.address !== undefined) updates.address = data.address;
+  if (data.sector !== undefined) updates.sector = data.sector;
+  if (data.ciudad !== undefined) updates.ciudad = data.ciudad;
+  if (data.fiadorName !== undefined) updates.fiadorName = data.fiadorName;
+  if (data.fiadorPhone !== undefined) updates.fiadorPhone = encrypt(data.fiadorPhone) ?? data.fiadorPhone;
+  if (data.cobradorId !== undefined) updates.cobradorId = data.cobradorId ?? null;
+  if (data.avatarUrl !== undefined) updates.avatarUrl = data.avatarUrl ?? null;
+  if ((data as any).cedula !== undefined) updates.cedula = encrypt((data as any).cedula) ?? (data as any).cedula;
 
   if (Object.keys(updates).length === 0) {
     res.json(mapClient(existing[0]));

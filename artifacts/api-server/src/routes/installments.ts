@@ -108,8 +108,8 @@ router.post("/:id/pay", async (req, res) => {
     ? req.body.paymentMethod
     : "efectivo";
 
-  const gpsLat = typeof req.body?.gpsLat === "number" ? req.body.gpsLat : null;
-  const gpsLng = typeof req.body?.gpsLng === "number" ? req.body.gpsLng : null;
+  const gpsLat = req.body?.gpsLat ? Number(req.body.gpsLat) : null;
+  const gpsLng = req.body?.gpsLng ? Number(req.body.gpsLng) : null;
   const photoUrl = typeof req.body?.photoUrl === "string" ? req.body.photoUrl : null;
 
   const userId = (req.session as any)?.userId as number | undefined;
@@ -178,7 +178,7 @@ router.post("/:id/pay", async (req, res) => {
 // Pay multiple installments at once
 router.post("/pay-bulk", async (req, res) => {
   const { installmentIds } = req.body;
-  if (!Array.isArray(installmentIds) || installmentIds.length === 0 || !installmentIds.every(id => typeof id === "number")) {
+  if (!Array.isArray(installmentIds) || installmentIds.length === 0) {
     res.status(400).json({ error: "IDs inválidos" });
     return;
   }
@@ -326,8 +326,8 @@ router.post("/abono-loan/:loanId", async (req, res) => {
   const amount = Number(req.body?.amount);
   const paymentMethod = ["efectivo", "transferencia", "otro"].includes(req.body?.paymentMethod)
     ? req.body.paymentMethod : "efectivo";
-  const gpsLat = typeof req.body?.gpsLat === "number" ? req.body.gpsLat : null;
-  const gpsLng = typeof req.body?.gpsLng === "number" ? req.body.gpsLng : null;
+  const gpsLat = req.body?.gpsLat ? Number(req.body.gpsLat) : null;
+  const gpsLng = req.body?.gpsLng ? Number(req.body.gpsLng) : null;
   const photoUrl = typeof req.body?.photoUrl === "string" ? req.body.photoUrl : null;
   const userId = (req.session as any)?.userId as number | undefined;
 
@@ -412,8 +412,8 @@ router.post("/loan/:loanId/liquidar", async (req, res) => {
   const loanId = Number(req.params.loanId);
   const paymentMethod = ["efectivo", "transferencia", "otro"].includes(req.body?.paymentMethod)
     ? req.body.paymentMethod : "efectivo";
-  const gpsLat = typeof req.body?.gpsLat === "number" ? req.body.gpsLat : null;
-  const gpsLng = typeof req.body?.gpsLng === "number" ? req.body.gpsLng : null;
+  const gpsLat = req.body?.gpsLat ? Number(req.body.gpsLat) : null;
+  const gpsLng = req.body?.gpsLng ? Number(req.body.gpsLng) : null;
   const photoUrl = typeof req.body?.photoUrl === "string" ? req.body.photoUrl : null;
   const userId = (req.session as any)?.userId as number | undefined;
 
