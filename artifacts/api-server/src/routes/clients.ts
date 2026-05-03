@@ -111,12 +111,12 @@ router.patch("/:id", async (req, res) => {
   }
 
   const updates: Record<string, unknown> = {};
-  const body = bodyParsed.data;
-  if (body.status !== undefined) updates.status = body.status;
-  if (body.riskScore !== undefined) updates.riskScore = body.riskScore;
-  if (body.notes !== undefined) updates.notes = body.notes;
-  if (body.name !== undefined) updates.name = body.name;
-  if (body.apodo !== undefined) updates.apodo = body.apodo;
+  const data = bodyParsed.data;
+  if (data.status !== undefined) updates.status = data.status;
+  if (data.riskScore !== undefined) updates.riskScore = data.riskScore;
+  if (data.notes !== undefined) updates.notes = data.notes;
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.apodo !== undefined) updates.apodo = data.apodo;
   if (body.phone !== undefined) updates.phone = encrypt(body.phone) ?? body.phone;
   if (body.whatsapp !== undefined) updates.whatsapp = encrypt(body.whatsapp) ?? body.whatsapp;
   if (body.address !== undefined) updates.address = body.address;
