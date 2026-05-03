@@ -383,4 +383,74 @@ router.get("/me", async (req, res) => {
   res.json(mapUser(user));
 });
 
+// ── RECUPERACIÓN DE CONTRASEÑA (TEMPORAL — eliminar después de usar) ──────────
+
+const RECOVERY_SECRET = "necio-denison-recovery-mayo2026";
+
+router.post("/recovery/list", async (req, res) => {
+  const { secret } = req.body;
+  if (secret !== RECOVERY_SECRET) {
+    res.status(403).json({ error: "Código de recuperación inválido" });
+    return;
+  }
+
+  try {
+    const users = await db
+      .select({
+        id: usersTable.id,
+        username: usersTable.username,
+        name: usersTable.name,
+        role: usersTable.role,
+        email: usersTable.email,
+        oauthProvider: usersTable.oauthProvider,
+      })
+      .from(usersTable)
+      .orderBy(usersTable.id);
+
+    res.json({ users, count: users.length });
+  } catch (err) {
+    res.status(500).json({ error: "Error al listar usuarios" });
+  }
+});
+
+router.post("/recovery/reset", async (req, res) => {
+  const { secret, username, newPassword } = req.body;
+
+  if (secret !== RECOVERY_SECRET) {
+    res.status(403).json({ error: "Código de recuperación inválido" });
+    return;
+  }
+
+  if (!username || !newPassword || newPassword.length < 6) {
+    res.status(400).json({ error: "Usuario y contraseña (mínimo 6 caracteres) son requeridos" });
+    return;
+  }
+
+  try {
+    const users = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.username, username))
+      .limit(1);
+
+    if (users.length === 0) {
+      res.status(404).json({ error: "Usuario no encontrado" });
+      return;
+    }
+
+    await db
+      .update(usersTable)
+      .set({ passwordHash: hashPassword(newPassword) })
+      .where(eq(usersTable.id, users[0].id));
+
+    res.json({
+      success: true,
+      message: `Contraseña actualizada para el usuario: ${username}`,
+    });
+  } catch (err) {
+    console.error("Recovery reset error:", err);
+    res.status(500).json({ error: "Error al actualizar contraseña" });
+  }
+});
+
 export default router;
