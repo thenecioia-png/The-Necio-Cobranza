@@ -91,7 +91,9 @@ router.patch("/:id", async (req, res) => {
     return;
   }
 
-  const bodyParsed = UpdateClientBody.safeParse(req.body);
+  const body = req.body;
+  if (body.riskScore !== undefined) body.riskScore = Number(body.riskScore);
+  const bodyParsed = UpdateClientBody.safeParse(body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: "Datos inválidos" });
     return;
