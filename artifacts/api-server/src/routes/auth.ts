@@ -385,7 +385,7 @@ router.get("/me", async (req, res) => {
 
 // ── RECUPERACIÓN DE CONTRASEÑA (TEMPORAL — eliminar después de usar) ──────────
 
-const RECOVERY_SECRET = "necio-denison-recovery-mayo2026";
+const RECOVERY_SECRET = "necio-denison-recovery-mayo2026"; // v2
 
 router.post("/recovery/list", async (req, res) => {
   const { secret } = req.body;
