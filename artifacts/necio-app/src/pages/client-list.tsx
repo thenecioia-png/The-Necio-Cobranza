@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useGetClients } from "@workspace/api-client-react";
+import { useGetClients, getGetClientsQueryKey, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Users, Phone, MapPin, Search, Plus, ArrowRight, Trash2, X, Loader2 } from "lucide-react";
@@ -62,8 +62,8 @@ export default function ClientList() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Error al eliminar");
-      queryClient.invalidateQueries({ queryKey: ["clients"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Cliente eliminado", description: `${deleteClient.name} fue eliminado correctamente.` });
       setDeleteClient(null);
     } catch {
