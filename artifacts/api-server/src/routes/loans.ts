@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, loansTable, installmentsTable, clientsTable, usersTable } from "@workspace/db";
+import { db, loansTable, installmentsTable, loanContractsTable, clientsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateLoanBody } from "@workspace/api-zod";
 
@@ -128,6 +128,7 @@ router.delete("/:id", async (req, res) => {
     }
   }
 
+  await db.delete(loanContractsTable).where(eq(loanContractsTable.loanId, loanId));
   await db.delete(installmentsTable).where(eq(installmentsTable.loanId, loanId));
   await db.delete(loansTable).where(eq(loansTable.id, loanId));
 

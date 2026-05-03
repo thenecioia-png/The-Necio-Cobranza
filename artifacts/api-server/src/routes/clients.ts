@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, clientsTable, loansTable, installmentsTable, usersTable } from "@workspace/db";
+import { db, clientsTable, loansTable, installmentsTable, loanContractsTable, usersTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { CreateClientBody, GetClientParams, UpdateClientBody, UpdateClientParams } from "@workspace/api-zod";
 import { decrypt, encrypt, isEncryptionEnabled } from "../lib/encryption";
@@ -244,8 +244,13 @@ router.delete("/:id", async (req, res) => {
   const loans = await db.select().from(loansTable).where(eq(loansTable.clientId, parsed.data.id));
   const loanIds = loans.map(l => l.id);
 
-  // Delete installments first, then loans, then client (no cascade in schema)
+  // Delete related records in order: contracts -> installments -> loans -> client
   if (loanIds.length > 0) {
+    await db.delete(loanContractsTable).where(
+      loanIds.length === 1
+        ? eq(loanContractsTable.loanId, loanIds[0])
+        : inArray(loanContractsTable.loanId, loanIds)
+    );
     await db.delete(installmentsTable).where(
       loanIds.length === 1
         ? eq(installmentsTable.loanId, loanIds[0])
@@ -257,6 +262,8 @@ router.delete("/:id", async (req, res) => {
         : inArray(loansTable.id, loanIds)
     );
   }
+  // Also delete any contracts directly linked to client (fallback)
+  await db.delete(loanContractsTable).where(eq(loanContractsTable.clientId, parsed.data.id));
 
   await db.delete(clientsTable).where(whereClause);
 
