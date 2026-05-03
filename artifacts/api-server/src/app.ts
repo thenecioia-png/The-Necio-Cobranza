@@ -6,7 +6,6 @@ import path from "path";
 import fs from "fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
-import JSON5 from "json5";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -35,31 +34,7 @@ app.use(
   }),
 );
 app.use(cors({ origin: true, credentials: true }));
-// Middleware personalizado para parsear JSON (evita WAF de Railway que elimina comillas)
-app.use((req, res, next) => {
-  const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('application/json') || contentType.includes('text/plain')) {
-    let data = '';
-    req.on('data', chunk => { data += chunk; });
-    req.on('end', () => {
-      try {
-        req.body = data ? JSON.parse(data) : {};
-      } catch {
-        console.log('[WAF-FIX] JSON.parse failed, raw:', data);
-        try {
-          req.body = data ? JSON5.parse(data) : {};
-          console.log('[WAF-FIX] JSON5 parsed:', req.body);
-        } catch (e2) {
-          console.log('[WAF-FIX] JSON5 also failed:', e2);
-          req.body = {};
-        }
-      }
-      next();
-    });
-  } else {
-    next();
-  }
-});
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(

@@ -126,6 +126,32 @@ function stripBom(text: string): string {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
+/**
+ * Serializa un objeto plano a URLSearchParams (x-www-form-urlencoded).
+ * Maneja strings, números, booleanos, y arrays simples.
+ */
+function serializeToFormData(obj: Record<string, any>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        params.append(`${key}[]`, String(item));
+      }
+    } else if (typeof value === "object") {
+      // Objetos anidados simples: {client: {name: "Juan"}} → client[name]=Juan
+      for (const [subKey, subValue] of Object.entries(value)) {
+        if (subValue !== undefined && subValue !== null) {
+          params.append(`${key}[${subKey}]`, String(subValue));
+        }
+      }
+    } else {
+      params.append(key, String(value));
+    }
+  }
+  return params.toString();
+}
+
 function looksLikeJson(text: string): boolean {
   const trimmed = text.trimStart();
   return trimmed.startsWith("{") || trimmed.startsWith("[");
@@ -340,6 +366,20 @@ export async function customFetch<T = unknown>(
     looksLikeJson(init.body)
   ) {
     headers.set("content-type", "application/json");
+  }
+
+  // EVITAR WAF DE RAILWAY: convertir JSON a x-www-form-urlencoded
+  const contentType = headers.get("content-type") || "";
+  if (contentType.includes("application/json") && typeof init.body === "string") {
+    try {
+      const obj = JSON.parse(init.body);
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        init.body = serializeToFormData(obj);
+        headers.set("content-type", "application/x-www-form-urlencoded");
+      }
+    } catch {
+      // Si no es JSON válido, dejar como está
+    }
   }
 
   if (responseType === "json" && !headers.has("accept")) {
