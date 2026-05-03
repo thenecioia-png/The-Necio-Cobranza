@@ -34,7 +34,26 @@ app.use(
   }),
 );
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+// Middleware personalizado para parsear JSON (debug WAF/Express issue)
+app.use((req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('application/json')) {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => {
+      try {
+        req.body = data ? JSON.parse(data) : {};
+        console.log('[JSON-PARSER] Parsed body:', typeof req.body, JSON.stringify(req.body).slice(0, 200));
+      } catch (e) {
+        console.log('[JSON-PARSER] Parse error:', e);
+        req.body = {};
+      }
+      next();
+    });
+  } else {
+    next();
+  }
+});
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
