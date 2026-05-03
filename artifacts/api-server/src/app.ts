@@ -45,11 +45,12 @@ app.use((req, res, next) => {
       try {
         req.body = data ? JSON.parse(data) : {};
       } catch {
-        // WAF de Railway elimina comillas dobles del JSON.
-        // JSON5 puede parsear JSON con propiedades/valores sin comillas.
+        console.log('[WAF-FIX] JSON.parse failed, raw:', data);
         try {
           req.body = data ? JSON5.parse(data) : {};
-        } catch {
+          console.log('[WAF-FIX] JSON5 parsed:', req.body);
+        } catch (e2) {
+          console.log('[WAF-FIX] JSON5 also failed:', e2);
           req.body = {};
         }
       }
