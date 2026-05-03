@@ -4,7 +4,16 @@ import "./index.css";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`)
+      .then((reg) => {
+        // Register background sync for offline payments
+        const regAny = reg as any;
+        if (regAny.sync) {
+          regAny.sync.register("sync-payments").catch(() => {});
+        }
+      })
+      .catch(() => {});
   });
 }
 

@@ -34,7 +34,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     res.status(401).json({ error: "No autenticado" });
     return;
   }
-  if (user.role !== "admin") {
+  if (user.role !== "admin" && user.role !== "super_admin") {
     res.status(403).json({ error: "Solo los administradores pueden acceder" });
     return;
   }

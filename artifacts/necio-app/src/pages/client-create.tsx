@@ -139,6 +139,9 @@ export default function ClientCreate() {
       },
       onError: (err: any) => {
         toast({ variant: "destructive", title: "Error", description: err.message || "No se pudo crear el cliente" });
+        if (avatarFile) {
+          toast({ variant: "default", title: "Aviso", description: "La foto se subio al servidor pero el cliente no se creo. Puedes reintentar sin subir la foto de nuevo." });
+        }
       }
     }
   });

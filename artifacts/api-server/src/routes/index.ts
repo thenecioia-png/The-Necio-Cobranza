@@ -13,6 +13,7 @@ import backupRouter from "./backup";
 import contractsRouter from "./contracts";
 import expensesRouter from "./expenses";
 import trackingRouter from "./tracking";
+import { requireAuth } from "../middleware/auth";
 import { getUncachableStripeClient } from "../lib/stripe";
 
 const router: IRouter = Router();
@@ -42,17 +43,17 @@ router.use((req: any, _res, next) => {
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
-router.use("/clients", clientsRouter);
-router.use("/loans", loansRouter);
-router.use("/installments", installmentsRouter);
-router.use("/dashboard", dashboardRouter);
-router.use("/cobradores", cobradoresRouter);
-router.use(storageRouter);
-router.use("/stripe", stripeRouter);
-router.use("/notifications", notificationsRouter);
-router.use("/backup", backupRouter);
-router.use("/contracts", contractsRouter);
-router.use("/expenses", expensesRouter);
-router.use("/tracking", trackingRouter);
+router.use("/clients", requireAuth, clientsRouter);
+router.use("/loans", requireAuth, loansRouter);
+router.use("/installments", requireAuth, installmentsRouter);
+router.use("/dashboard", requireAuth, dashboardRouter);
+router.use("/cobradores", requireAuth, cobradoresRouter);
+router.use(storageRouter); // storage routes have their own /storage prefix and public endpoints
+router.use("/stripe", requireAuth, stripeRouter);
+router.use("/notifications", requireAuth, notificationsRouter);
+router.use("/backup", requireAuth, backupRouter);
+router.use("/contracts", requireAuth, contractsRouter);
+router.use("/expenses", requireAuth, expensesRouter);
+router.use("/tracking", requireAuth, trackingRouter);
 
 export default router;

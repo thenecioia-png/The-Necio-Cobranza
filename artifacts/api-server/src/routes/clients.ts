@@ -134,7 +134,7 @@ router.patch("/:id", async (req, res) => {
   const [updated] = await db
     .update(clientsTable)
     .set(updates)
-    .where(eq(clientsTable.id, paramsParsed.data.id))
+    .where(whereClause)
     .returning();
 
   res.json(mapClient(updated));

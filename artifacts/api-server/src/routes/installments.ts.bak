@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { db, installmentsTable, loansTable, clientsTable, usersTable } from "@workspace/db";
 import { eq, and, inArray, ne } from "drizzle-orm";
 import { PayInstallmentParams } from "@workspace/api-zod";
-import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -99,11 +98,6 @@ router.post("/:id/pay", async (req, res) => {
     return;
   }
 
-  if (installment.status === "paid") {
-    res.status(409).json({ error: "Esta cuota ya fue pagada" });
-    return;
-  }
-
   const paymentMethod = ["efectivo", "transferencia", "otro"].includes(req.body?.paymentMethod)
     ? req.body.paymentMethod
     : "efectivo";
@@ -149,16 +143,8 @@ router.post("/:id/pay", async (req, res) => {
       const amount = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(updated.amount);
       const msg = `✅ *Pago Confirmado*\n\nHola ${client.clientName},\n\nRegistramos tu pago de *${amount}* para la cuota del ${new Date(updated.dueDate).toLocaleDateString("es-DO")}.\n\n¡Gracias! 🙌\n\n_The Necio Cobranza_`;
       const from = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
-      twilioClient.messages.create({ from, to: `whatsapp:${e164}`, body: msg })
-        .then((msgRes: any) => {
-          logger.info({ sid: msgRes.sid, to: e164 }, "WhatsApp enviado");
-        })
-        .catch((twilioErr: any) => {
-          logger.warn({ err: twilioErr.message, to: e164 }, "WhatsApp fallo");
-        });
-    }).catch((dbErr: any) => {
-      logger.warn({ err: dbErr.message }, "Error buscando cliente para WhatsApp");
-    });
+      twilioClient.messages.create({ from, to: `whatsapp:${e164}`, body: msg }).catch(() => {});
+    }).catch(() => {});
   }
 
   res.json({
@@ -183,43 +169,15 @@ router.post("/pay-bulk", async (req, res) => {
     return;
   }
 
-  const userId = (req.session as any)?.userId as number | undefined;
-  let businessIdFilter: number | null = null;
-
-  if (userId) {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-    if (user?.businessId) businessIdFilter = user.businessId;
-  }
-
-  let whereClause;
-  if (businessIdFilter !== null) {
-    // Verify installments belong to clients of this business
-    const validIds = await db
-      .select({ id: installmentsTable.id })
-      .from(installmentsTable)
-      .innerJoin(loansTable, eq(installmentsTable.loanId, loansTable.id))
-      .innerJoin(clientsTable, eq(loansTable.clientId, clientsTable.id))
-      .where(
-        and(
-          inArray(installmentsTable.id, installmentIds),
-          eq(clientsTable.businessId, businessIdFilter),
-          ne(installmentsTable.status, "paid")
-        )
-      );
-    const allowedIds = validIds.map(r => r.id);
-    if (allowedIds.length === 0) {
-      res.status(403).json({ error: "No tienes permiso para cobrar estas cuotas" });
-      return;
-    }
-    whereClause = and(inArray(installmentsTable.id, allowedIds), ne(installmentsTable.status, "paid"));
-  } else {
-    whereClause = and(inArray(installmentsTable.id, installmentIds), ne(installmentsTable.status, "paid"));
-  }
-
   const updated = await db
     .update(installmentsTable)
     .set({ status: "paid", paidAt: new Date() })
-    .where(whereClause)
+    .where(
+      and(
+        inArray(installmentsTable.id, installmentIds),
+        ne(installmentsTable.status, "paid")
+      )
+    )
     .returning();
 
   res.json({

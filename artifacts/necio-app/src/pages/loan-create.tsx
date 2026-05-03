@@ -39,7 +39,7 @@ export default function LoanCreate() {
       amount: 1000,
       interestRate: 20,
       installmentsCount: 30,
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santo_Domingo' }),
       frequency: "daily"
     }
   });
