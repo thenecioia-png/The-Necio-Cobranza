@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { OfflineBanner } from "@/components/offline-banner";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { TutorialButton } from "@/components/tutorial";
+import { ShareAppButton } from "@/components/share-app";
 
 const ADMIN_ONLY = ["/dashboard", "/cobradores", "/billing", "/tracking"];
 
@@ -129,6 +130,12 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
 
           <TutorialButton />
+
+          <div className="my-3 border-t border-border/50" />
+
+          <ShareAppButton />
+
+          <div className="my-3 border-t border-border/50" />
 
           <button
             onClick={() => logoutMutation.mutate()}

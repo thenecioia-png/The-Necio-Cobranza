@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { SocialLoginButtons } from "@/components/social-login";
+import { ShareAppButton } from "@/components/share-app";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -143,6 +144,10 @@ export default function Login() {
               Registrarse
             </button>
           </p>
+        </div>
+
+        <div className="mt-4">
+          <ShareAppButton />
         </div>
       </motion.div>
     </div>
