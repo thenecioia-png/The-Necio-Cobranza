@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, loansTable, installmentsTable, loanContractsTable, clientsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateLoanBody } from "@workspace/api-zod";
+import { verifyConfirmationCode } from "./confirmations";
 
 const router: IRouter = Router();
 
@@ -105,9 +106,14 @@ router.post("/", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
+  const { code } = req.body;
   const loanId = Number(req.params.id);
   if (isNaN(loanId)) {
     res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+  if (!code || !verifyConfirmationCode("delete-loan", loanId, code)) {
+    res.status(400).json({ error: "Código de confirmación inválido o expirado" });
     return;
   }
 

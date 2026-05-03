@@ -28,6 +28,11 @@ export default function ClientList() {
   const { toast } = useToast();
   const [deleteClient, setDeleteClient] = useState<{ id: number; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmStep, setConfirmStep] = useState<"request" | "verify">("request");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [fallbackCode, setFallbackCode] = useState("");
 
   if (isLoading) {
     return (
@@ -53,16 +58,43 @@ export default function ClientList() {
   const delinquentCount = clients?.filter(c => c.status === "delinquent").length ?? 0;
   const uncollectibleCount = clients?.filter(c => c.status === "uncollectible").length ?? 0;
 
+  const requestDeleteCode = async () => {
+    if (!deleteClient || !confirmEmail) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/confirmations/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        credentials: "include",
+        body: new URLSearchParams({ action: "delete-client", targetId: String(deleteClient.id), email: confirmEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setCodeSent(true);
+      if (data.code) setFallbackCode(data.code); // fallback when email not configured
+      toast({ title: "Código enviado", description: data.emailConfigured ? `Revisa ${confirmEmail}` : "Email no configurado. Usa el código mostrado." });
+      setConfirmStep("verify");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo enviar el código." });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteClient) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/clients/${deleteClient.id}`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         credentials: "include",
+        body: new URLSearchParams({ code: confirmCode }),
       });
-      if (!res.ok) throw new Error("Error al eliminar");
-      // Update cache immediately for instant UI feedback
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al eliminar");
+      }
       queryClient.setQueryData(getGetClientsQueryKey(), (old: any) =>
         old ? old.filter((c: any) => c.id !== deleteClient.id) : old
       );
@@ -70,8 +102,13 @@ export default function ClientList() {
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Cliente eliminado", description: `${deleteClient.name} fue eliminado correctamente.` });
       setDeleteClient(null);
-    } catch {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el cliente." });
+      setConfirmStep("request");
+      setConfirmCode("");
+      setConfirmEmail("");
+      setCodeSent(false);
+      setFallbackCode("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo eliminar el cliente." });
     } finally {
       setDeleting(false);
     }
@@ -223,17 +260,65 @@ export default function ClientList() {
                   <p className="text-xs text-muted-foreground">Se borrará <strong>{deleteClient.name}</strong> y todos sus préstamos y cuotas. Esta acción no se puede deshacer.</p>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setDeleteClient(null)} disabled={deleting}
-                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
-                  Cancelar
-                </button>
-                <button onClick={handleDelete} disabled={deleting}
-                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
-                  {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                  {deleting ? "Eliminando..." : "Eliminar"}
-                </button>
-              </div>
+
+              {confirmStep === "request" ? (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Correo para confirmación</label>
+                    <input
+                      type="email"
+                      value={confirmEmail}
+                      onChange={e => setConfirmEmail(e.target.value)}
+                      placeholder="peguerodenison@gmail.com"
+                      className="w-full bg-background border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setDeleteClient(null)} disabled={deleting}
+                      className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                      Cancelar
+                    </button>
+                    <button onClick={requestDeleteCode} disabled={deleting || !confirmEmail}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                      {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                      {deleting ? "Enviando..." : "Solicitar código"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {fallbackCode && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+                      <p className="text-xs text-amber-400">Email no configurado. Tu código es:</p>
+                      <p className="text-2xl font-bold font-display text-amber-400 tracking-[8px]">{fallbackCode}</p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 block">Código de confirmación</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={confirmCode}
+                      onChange={e => setConfirmCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="000000"
+                      className="w-full bg-background border border-white/10 rounded-xl py-3 px-4 text-white text-lg font-bold font-display tracking-[8px] text-center focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => { setConfirmStep("request"); setConfirmCode(""); setFallbackCode(""); }} disabled={deleting}
+                      className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                      Atrás
+                    </button>
+                    <button onClick={handleDelete} disabled={deleting || confirmCode.length < 6}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                      {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                      {deleting ? "Eliminando..." : "Confirmar"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

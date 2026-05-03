@@ -8,6 +8,8 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { Strategy as GitHubStrategy } from "passport-github2";
 import { OAuth2Client } from "google-auth-library";
+import { sendPasswordReset } from "../lib/mailer";
+import { createPasswordResetToken, verifyPasswordResetToken } from "./confirmations";
 
 const router: IRouter = Router();
 
@@ -381,6 +383,52 @@ router.get("/me", async (req, res) => {
   }
 
   res.json(mapUser(user));
+});
+
+// Password recovery
+router.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    res.status(400).json({ error: "Email requerido" });
+    return;
+  }
+
+  const users = await db.select().from(usersTable).where(eq(usersTable.username, email)).limit(1);
+  if (users.length === 0) {
+    // Don't reveal if email exists
+    res.json({ message: "Si el usuario existe, recibirás un correo con instrucciones." });
+    return;
+  }
+
+  const user = users[0];
+  const token = createPasswordResetToken(user.id, user.username);
+  const result = await sendPasswordReset(user.username, token);
+
+  if (result.sent) {
+    res.json({ message: "Si el usuario existe, recibirás un correo con instrucciones." });
+  } else {
+    // Fallback: return token in response for testing
+    res.json({ message: "Email no configurado. Token de recuperación:", token, emailConfigured: false });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) {
+    res.status(400).json({ error: "Token y contraseña requeridos" });
+    return;
+  }
+
+  const resetInfo = verifyPasswordResetToken(token);
+  if (!resetInfo) {
+    res.status(400).json({ error: "Token inválido o expirado" });
+    return;
+  }
+
+  const passwordHash = hashPassword(password);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, resetInfo.userId));
+
+  res.json({ message: "Contraseña actualizada correctamente" });
 });
 
 export default router;

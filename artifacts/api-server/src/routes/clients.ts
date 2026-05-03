@@ -3,6 +3,7 @@ import { db, clientsTable, loansTable, installmentsTable, loanContractsTable, us
 import { eq, and, inArray } from "drizzle-orm";
 import { CreateClientBody, GetClientParams, UpdateClientBody, UpdateClientParams } from "@workspace/api-zod";
 import { decrypt, encrypt, isEncryptionEnabled } from "../lib/encryption";
+import { verifyConfirmationCode } from "./confirmations";
 
 const router: IRouter = Router();
 
@@ -223,7 +224,14 @@ router.get("/:id", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  const parsed = GetClientParams.safeParse({ id: Number(req.params.id) });
+  const { code } = req.body;
+  const clientId = Number(req.params.id);
+  if (!code || !verifyConfirmationCode("delete-client", clientId, code)) {
+    res.status(400).json({ error: "Código de confirmación inválido o expirado" });
+    return;
+  }
+
+  const parsed = GetClientParams.safeParse({ id: clientId });
   if (!parsed.success) {
     res.status(400).json({ error: "ID inválido" });
     return;

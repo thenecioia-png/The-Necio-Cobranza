@@ -13,6 +13,7 @@ import backupRouter from "./backup";
 import contractsRouter from "./contracts";
 import expensesRouter from "./expenses";
 import trackingRouter from "./tracking";
+import confirmationsRouter from "./confirmations";
 import { requireAuth } from "../middleware/auth";
 import { getUncachableStripeClient } from "../lib/stripe";
 
@@ -55,5 +56,6 @@ router.use("/backup", requireAuth, backupRouter);
 router.use("/contracts", requireAuth, contractsRouter);
 router.use("/expenses", requireAuth, expensesRouter);
 router.use("/tracking", requireAuth, trackingRouter);
+router.use("/confirmations", requireAuth, confirmationsRouter);
 
 export default router;

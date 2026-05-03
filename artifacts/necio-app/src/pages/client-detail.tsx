@@ -4,7 +4,7 @@ import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQuery
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
-import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap, Lock, FileText, Trash2 } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap, Lock, FileText, Trash2, Mail } from "lucide-react";
 import { ClientAvatarUpload } from "@/components/client-avatar";
 import { ContractModal } from "@/components/contract-modal";
 
@@ -55,6 +55,11 @@ export default function ClientDetail() {
   const [confirmDeleteLoan, setConfirmDeleteLoan] = useState<{ id: number; amount: number } | null>(null);
   const [deletingClient, setDeletingClient] = useState(false);
   const [deletingLoan, setDeletingLoan] = useState(false);
+  const [clientDeleteStep, setClientDeleteStep] = useState<"request" | "verify">("request");
+  const [loanDeleteStep, setLoanDeleteStep] = useState<"request" | "verify">("request");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
+  const [fallbackCode, setFallbackCode] = useState("");
 
   const { data: client, isLoading, isError } = useGetClient(id);
   const { data: cobradores = [] } = useQuery({ queryKey: ["cobradores"], queryFn: fetchCobradores, staleTime: 60_000 });
@@ -212,12 +217,41 @@ export default function ClientDetail() {
     }
   };
 
+  const requestClientDeleteCode = async () => {
+    if (!confirmEmail) return;
+    setDeletingClient(true);
+    try {
+      const res = await fetch(`${API_BASE}/confirmations/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        credentials: "include",
+        body: new URLSearchParams({ action: "delete-client", targetId: String(id), email: confirmEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.code) setFallbackCode(data.code);
+      toast({ title: "Código enviado", description: data.emailConfigured ? `Revisa ${confirmEmail}` : "Email no configurado. Usa el código mostrado." });
+      setClientDeleteStep("verify");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo enviar el código." });
+    } finally {
+      setDeletingClient(false);
+    }
+  };
+
   const handleDeleteClient = async () => {
     setDeletingClient(true);
     try {
-      const res = await fetch(`${API_BASE}/clients/${id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("Error al eliminar");
-      // Update cache immediately
+      const res = await fetch(`${API_BASE}/clients/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        credentials: "include",
+        body: new URLSearchParams({ code: confirmCode }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al eliminar");
+      }
       queryClient.setQueryData(getGetClientsQueryKey(), (old: any) =>
         old ? old.filter((c: any) => c.id !== id) : old
       );
@@ -225,10 +259,31 @@ export default function ClientDetail() {
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Cliente eliminado", description: "El cliente fue eliminado correctamente." });
       window.location.href = "/clients";
-    } catch {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el cliente." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo eliminar el cliente." });
       setDeletingClient(false);
-      setConfirmDeleteClient(false);
+    }
+  };
+
+  const requestLoanDeleteCode = async () => {
+    if (!confirmDeleteLoan || !confirmEmail) return;
+    setDeletingLoan(true);
+    try {
+      const res = await fetch(`${API_BASE}/confirmations/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        credentials: "include",
+        body: new URLSearchParams({ action: "delete-loan", targetId: String(confirmDeleteLoan.id), email: confirmEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.code) setFallbackCode(data.code);
+      toast({ title: "Código enviado", description: data.emailConfigured ? `Revisa ${confirmEmail}` : "Email no configurado. Usa el código mostrado." });
+      setLoanDeleteStep("verify");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo enviar el código." });
+    } finally {
+      setDeletingLoan(false);
     }
   };
 
@@ -236,9 +291,16 @@ export default function ClientDetail() {
     if (!confirmDeleteLoan) return;
     setDeletingLoan(true);
     try {
-      const res = await fetch(`${API_BASE}/loans/${confirmDeleteLoan.id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("Error al eliminar");
-      // Update cache immediately for instant UI feedback
+      const res = await fetch(`${API_BASE}/loans/${confirmDeleteLoan.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        credentials: "include",
+        body: new URLSearchParams({ code: confirmCode }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al eliminar");
+      }
       queryClient.setQueryData(getGetClientQueryKey(id), (old: any) => {
         if (!old || !old.loans) return old;
         return { ...old, loans: old.loans.filter((l: any) => l.id !== confirmDeleteLoan.id) };
@@ -247,8 +309,11 @@ export default function ClientDetail() {
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Préstamo eliminado", description: "El préstamo fue eliminado correctamente." });
       setConfirmDeleteLoan(null);
-    } catch {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el préstamo." });
+      setLoanDeleteStep("request");
+      setConfirmCode("");
+      setFallbackCode("");
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "No se pudo eliminar el préstamo." });
     } finally {
       setDeletingLoan(false);
     }
@@ -806,6 +871,7 @@ export default function ClientDetail() {
       )}
 
       {/* Confirm delete client */}
+      {/* Confirm delete client */}
       {confirmDeleteClient && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={() => !deletingClient && setConfirmDeleteClient(false)}>
           <div className="bg-card border border-red-500/30 rounded-3xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -819,17 +885,65 @@ export default function ClientDetail() {
                   <p className="text-xs text-muted-foreground">Se borrará <strong>{client.name}</strong> y todos sus préstamos y cuotas. No se puede deshacer.</p>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setConfirmDeleteClient(false)} disabled={deletingClient}
-                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
-                  Cancelar
-                </button>
-                <button onClick={handleDeleteClient} disabled={deletingClient}
-                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
-                  {deletingClient ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                  {deletingClient ? "Eliminando..." : "Eliminar"}
-                </button>
-              </div>
+
+              {clientDeleteStep === "request" ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Correo del administrador</label>
+                    <select
+                      value={confirmEmail}
+                      onChange={(e) => setConfirmEmail(e.target.value)}
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                    >
+                      <option value="">Seleccionar correo...</option>
+                      <option value="peguerodenison@gmail.com">peguerodenison@gmail.com</option>
+                      <option value="thenecioia@gmail.com">thenecioia@gmail.com</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setConfirmDeleteClient(false)} disabled={deletingClient}
+                      className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                      Cancelar
+                    </button>
+                    <button onClick={requestClientDeleteCode} disabled={deletingClient || !confirmEmail}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                      {deletingClient ? <Loader2 className="w-5 h-5 animate-spin" /> : <Mail className="w-5 h-5" />}
+                      {deletingClient ? "Enviando..." : "Solicitar código"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {fallbackCode && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+                        <p className="text-xs text-amber-400">Email no configurado. Código de respaldo:</p>
+                        <p className="text-2xl font-display font-bold text-amber-300 mt-1">{fallbackCode}</p>
+                      </div>
+                    )}
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Código de confirmación</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={confirmCode}
+                      onChange={(e) => setConfirmCode(e.target.value)}
+                      placeholder="190021"
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-center font-display font-bold text-lg tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => { setClientDeleteStep("request"); setConfirmCode(""); setFallbackCode(""); }} disabled={deletingClient}
+                      className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                      Volver
+                    </button>
+                    <button onClick={handleDeleteClient} disabled={deletingClient || confirmCode.length !== 6}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                      {deletingClient ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                      {deletingClient ? "Eliminando..." : "Eliminar"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -849,17 +963,65 @@ export default function ClientDetail() {
                   <p className="text-xs text-muted-foreground">Se borrará el préstamo de <strong>{formatRD(confirmDeleteLoan.amount)}</strong> y todas sus cuotas. No se puede deshacer.</p>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setConfirmDeleteLoan(null)} disabled={deletingLoan}
-                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
-                  Cancelar
-                </button>
-                <button onClick={handleDeleteLoan} disabled={deletingLoan}
-                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
-                  {deletingLoan ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                  {deletingLoan ? "Eliminando..." : "Eliminar"}
-                </button>
-              </div>
+
+              {loanDeleteStep === "request" ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Correo del administrador</label>
+                    <select
+                      value={confirmEmail}
+                      onChange={(e) => setConfirmEmail(e.target.value)}
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                    >
+                      <option value="">Seleccionar correo...</option>
+                      <option value="peguerodenison@gmail.com">peguerodenison@gmail.com</option>
+                      <option value="thenecioia@gmail.com">thenecioia@gmail.com</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setConfirmDeleteLoan(null)} disabled={deletingLoan}
+                      className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                      Cancelar
+                    </button>
+                    <button onClick={requestLoanDeleteCode} disabled={deletingLoan || !confirmEmail}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                      {deletingLoan ? <Loader2 className="w-5 h-5 animate-spin" /> : <Mail className="w-5 h-5" />}
+                      {deletingLoan ? "Enviando..." : "Solicitar código"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    {fallbackCode && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+                        <p className="text-xs text-amber-400">Email no configurado. Código de respaldo:</p>
+                        <p className="text-2xl font-display font-bold text-amber-300 mt-1">{fallbackCode}</p>
+                      </div>
+                    )}
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Código de confirmación</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={confirmCode}
+                      onChange={(e) => setConfirmCode(e.target.value)}
+                      placeholder="190021"
+                      className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-center font-display font-bold text-lg tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => { setLoanDeleteStep("request"); setConfirmCode(""); setFallbackCode(""); }} disabled={deletingLoan}
+                      className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                      Volver
+                    </button>
+                    <button onClick={handleDeleteLoan} disabled={deletingLoan || confirmCode.length !== 6}
+                      className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                      {deletingLoan ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                      {deletingLoan ? "Eliminando..." : "Eliminar"}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
