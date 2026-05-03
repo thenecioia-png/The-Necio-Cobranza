@@ -62,6 +62,10 @@ export default function ClientList() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Error al eliminar");
+      // Update cache immediately for instant UI feedback
+      queryClient.setQueryData(getGetClientsQueryKey(), (old: any) =>
+        old ? old.filter((c: any) => c.id !== deleteClient.id) : old
+      );
       queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Cliente eliminado", description: `${deleteClient.name} fue eliminado correctamente.` });

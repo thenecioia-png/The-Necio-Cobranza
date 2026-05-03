@@ -217,6 +217,10 @@ export default function ClientDetail() {
     try {
       const res = await fetch(`${API_BASE}/clients/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Error al eliminar");
+      // Update cache immediately
+      queryClient.setQueryData(getGetClientsQueryKey(), (old: any) =>
+        old ? old.filter((c: any) => c.id !== id) : old
+      );
       queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Cliente eliminado", description: "El cliente fue eliminado correctamente." });
@@ -234,6 +238,11 @@ export default function ClientDetail() {
     try {
       const res = await fetch(`${API_BASE}/loans/${confirmDeleteLoan.id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Error al eliminar");
+      // Update cache immediately for instant UI feedback
+      queryClient.setQueryData(getGetClientQueryKey(id), (old: any) => {
+        if (!old || !old.loans) return old;
+        return { ...old, loans: old.loans.filter((l: any) => l.id !== confirmDeleteLoan.id) };
+      });
       queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
       queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
       toast({ title: "Préstamo eliminado", description: "El préstamo fue eliminado correctamente." });
