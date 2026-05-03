@@ -34,20 +34,23 @@ app.use(
   }),
 );
 app.use(cors({ origin: true, credentials: true }));
-// Middleware personalizado para parsear JSON (debug WAF/Express issue)
+// Middleware personalizado para parsear JSON (evita WAF que elimina comillas)
 app.use((req, res, next) => {
   const contentType = req.headers['content-type'] || '';
-  if (contentType.includes('application/json')) {
+  if (contentType.includes('application/json') || contentType.includes('text/plain')) {
     let data = '';
     req.on('data', chunk => { data += chunk; });
     req.on('end', () => {
-      console.log('[JSON-PARSER] Raw body:', data);
       try {
         req.body = data ? JSON.parse(data) : {};
-        console.log('[JSON-PARSER] Parsed body:', typeof req.body, JSON.stringify(req.body).slice(0, 200));
       } catch (e) {
-        console.log('[JSON-PARSER] Parse error for raw:', data);
-        req.body = {};
+        // Intentar reparar JSON sin comillas (WAF damage): {a:"b"} → {"a":"b"}
+        try {
+          const fixed = data.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+          req.body = fixed ? JSON.parse(fixed) : {};
+        } catch {
+          req.body = {};
+        }
       }
       next();
     });
