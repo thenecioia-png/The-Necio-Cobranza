@@ -41,11 +41,12 @@ app.use((req, res, next) => {
     let data = '';
     req.on('data', chunk => { data += chunk; });
     req.on('end', () => {
+      console.log('[JSON-PARSER] Raw body:', data);
       try {
         req.body = data ? JSON.parse(data) : {};
         console.log('[JSON-PARSER] Parsed body:', typeof req.body, JSON.stringify(req.body).slice(0, 200));
       } catch (e) {
-        console.log('[JSON-PARSER] Parse error:', e);
+        console.log('[JSON-PARSER] Parse error for raw:', data);
         req.body = {};
       }
       next();
