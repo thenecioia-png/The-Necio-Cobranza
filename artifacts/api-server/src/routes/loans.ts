@@ -42,14 +42,7 @@ function generateInstallments(loan: {
 }
 
 router.post("/", async (req, res) => {
-  // Normalizar campos numéricos que vienen como strings desde x-www-form-urlencoded
-  const body = req.body;
-  if (body.clientId !== undefined) body.clientId = Number(body.clientId);
-  if (body.amount !== undefined) body.amount = Number(body.amount);
-  if (body.interestRate !== undefined) body.interestRate = Number(body.interestRate);
-  if (body.installmentsCount !== undefined) body.installmentsCount = Number(body.installmentsCount);
-
-  const parsed = CreateLoanBody.safeParse(body);
+  const parsed = CreateLoanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Datos inválidos" });
     return;

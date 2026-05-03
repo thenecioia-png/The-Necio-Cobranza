@@ -83,9 +83,7 @@ router.post("/", async (req: any, res) => {
   const businessId = await getBusinessId(req);
   if (!businessId) return res.status(401).json({ error: "No autenticado" });
 
-  const body = req.body;
-  if (body.amount !== undefined) body.amount = Number(body.amount);
-  const parsed = CreateExpenseBody.safeParse(body);
+  const parsed = CreateExpenseBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
 
   const { category, description, amount, date, notes } = parsed.data;
@@ -114,9 +112,7 @@ router.put("/:id", async (req: any, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "ID inválido" });
 
-  const body = req.body;
-  if (body.amount !== undefined) body.amount = Number(body.amount);
-  const parsed = UpdateExpenseBody.safeParse(body);
+  const parsed = UpdateExpenseBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Datos inválidos" });
 
   const [existing] = await db

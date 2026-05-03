@@ -13,9 +13,7 @@ const RequestUploadUrlBody = z.object({
 });
 
 router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
-  const body = req.body;
-  if (body.size !== undefined) body.size = Number(body.size);
-  const parsed = RequestUploadUrlBody.safeParse(body);
+  const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });
     return;
