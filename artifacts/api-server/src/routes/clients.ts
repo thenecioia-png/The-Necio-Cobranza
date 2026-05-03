@@ -222,4 +222,45 @@ router.get("/:id", async (req, res) => {
   });
 });
 
+router.delete("/:id", async (req, res) => {
+  const parsed = GetClientParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const bizId = await getBusinessId(req);
+  const whereClause = bizId !== null
+    ? and(eq(clientsTable.id, parsed.data.id), eq(clientsTable.businessId, bizId))
+    : eq(clientsTable.id, parsed.data.id);
+
+  const existing = await db.select().from(clientsTable).where(whereClause).limit(1);
+  if (!existing[0]) {
+    res.status(404).json({ error: "Cliente no encontrado" });
+    return;
+  }
+
+  // Get all loans for this client
+  const loans = await db.select().from(loansTable).where(eq(loansTable.clientId, parsed.data.id));
+  const loanIds = loans.map(l => l.id);
+
+  // Delete installments first, then loans, then client (no cascade in schema)
+  if (loanIds.length > 0) {
+    await db.delete(installmentsTable).where(
+      loanIds.length === 1
+        ? eq(installmentsTable.loanId, loanIds[0])
+        : inArray(installmentsTable.loanId, loanIds)
+    );
+    await db.delete(loansTable).where(
+      loanIds.length === 1
+        ? eq(loansTable.id, loanIds[0])
+        : inArray(loansTable.id, loanIds)
+    );
+  }
+
+  await db.delete(clientsTable).where(whereClause);
+
+  res.json({ message: "Cliente eliminado" });
+});
+
 export default router;

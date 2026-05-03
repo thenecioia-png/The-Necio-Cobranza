@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useGetClients } from "@workspace/api-client-react";
-import { Users, Phone, MapPin, Search, Plus, ArrowRight } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Users, Phone, MapPin, Search, Plus, ArrowRight, Trash2, X, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ClientAvatar } from "@/components/client-avatar";
@@ -22,6 +24,10 @@ export default function ClientList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "delinquent" | "uncollectible">("all");
   const { data: clients, isLoading } = useGetClients();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [deleteClient, setDeleteClient] = useState<{ id: number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   if (isLoading) {
     return (
@@ -46,6 +52,26 @@ export default function ClientList() {
 
   const delinquentCount = clients?.filter(c => c.status === "delinquent").length ?? 0;
   const uncollectibleCount = clients?.filter(c => c.status === "uncollectible").length ?? 0;
+
+  const handleDelete = async () => {
+    if (!deleteClient) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/clients/${deleteClient.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Error al eliminar");
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] });
+      toast({ title: "Cliente eliminado", description: `${deleteClient.name} fue eliminado correctamente.` });
+      setDeleteClient(null);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el cliente." });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="p-6 lg:p-10 max-w-7xl mx-auto">
@@ -155,9 +181,18 @@ export default function ClientList() {
                     </span>
                   )}
                 </div>
-                <Link href={`/clients/${client.id}`} className="text-primary hover:text-white flex items-center gap-1 text-sm font-bold transition-colors">
-                  Ver <ArrowRight className="w-4 h-4" />
-                </Link>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setDeleteClient({ id: client.id, name: client.name })}
+                    className="p-2 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    title="Eliminar cliente"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <Link href={`/clients/${client.id}`} className="text-primary hover:text-white flex items-center gap-1 text-sm font-bold transition-colors">
+                    Ver <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
             </motion.div>
           );
@@ -169,6 +204,36 @@ export default function ClientList() {
           </div>
         )}
       </div>
+
+      {/* Confirm delete modal */}
+      {deleteClient && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={() => !deleting && setDeleteClient(null)}>
+          <div className="bg-card border border-red-500/30 rounded-3xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-red-500/15">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-bold">¿Eliminar cliente?</h3>
+                  <p className="text-xs text-muted-foreground">Se borrará <strong>{deleteClient.name}</strong> y todos sus préstamos y cuotas. Esta acción no se puede deshacer.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteClient(null)} disabled={deleting}
+                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                  Cancelar
+                </button>
+                <button onClick={handleDelete} disabled={deleting}
+                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                  {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                  {deleting ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

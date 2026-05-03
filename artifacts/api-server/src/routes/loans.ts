@@ -1,8 +1,16 @@
 import { Router, type IRouter } from "express";
-import { db, loansTable, installmentsTable } from "@workspace/db";
+import { db, loansTable, installmentsTable, clientsTable, usersTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { CreateLoanBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+async function getBusinessId(req: any): Promise<number | null> {
+  const userId = req.session?.userId;
+  if (!userId) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return user?.businessId ?? null;
+}
 
 function generateInstallments(loan: {
   id: number;
@@ -94,6 +102,36 @@ router.post("/", async (req, res) => {
     status: loan.status,
     createdAt: loan.createdAt.toISOString(),
   });
+});
+
+router.delete("/:id", async (req, res) => {
+  const loanId = Number(req.params.id);
+  if (isNaN(loanId)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+
+  const [loan] = await db.select().from(loansTable).where(eq(loansTable.id, loanId)).limit(1);
+  if (!loan) {
+    res.status(404).json({ error: "Préstamo no encontrado" });
+    return;
+  }
+
+  const bizId = await getBusinessId(req);
+  if (bizId !== null) {
+    const [client] = await db.select().from(clientsTable)
+      .where(and(eq(clientsTable.id, loan.clientId), eq(clientsTable.businessId, bizId)))
+      .limit(1);
+    if (!client) {
+      res.status(403).json({ error: "No autorizado" });
+      return;
+    }
+  }
+
+  await db.delete(installmentsTable).where(eq(installmentsTable.loanId, loanId));
+  await db.delete(loansTable).where(eq(loansTable.id, loanId));
+
+  res.json({ message: "Préstamo eliminado" });
 });
 
 export default router;

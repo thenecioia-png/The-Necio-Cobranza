@@ -4,7 +4,7 @@ import { useGetClient, useUpdateClient, getGetClientQueryKey, getGetClientsQuery
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatRD, formatDate, cn } from "@/lib/utils";
-import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap, Lock, FileText } from "lucide-react";
+import { User, Phone, MapPin, CreditCard, Calendar, Plus, ArrowLeft, CheckCircle2, Clock, AlertTriangle, Shield, SlidersHorizontal, MessageCircle, UserCog, Loader2, Banknote, X, TrendingDown, Zap, Lock, FileText, Trash2 } from "lucide-react";
 import { ClientAvatarUpload } from "@/components/client-avatar";
 import { ContractModal } from "@/components/contract-modal";
 
@@ -49,6 +49,12 @@ export default function ClientDetail() {
   const [contractLoanId, setContractLoanId] = useState<number | null>(null);
   const [liquidarMethod, setLiquidarMethod] = useState<"efectivo" | "transferencia" | "otro">("efectivo");
   const [liquidarLoading, setLiquidarLoading] = useState(false);
+
+  // Delete states
+  const [confirmDeleteClient, setConfirmDeleteClient] = useState(false);
+  const [confirmDeleteLoan, setConfirmDeleteLoan] = useState<{ id: number; amount: number } | null>(null);
+  const [deletingClient, setDeletingClient] = useState(false);
+  const [deletingLoan, setDeletingLoan] = useState(false);
 
   const { data: client, isLoading, isError } = useGetClient(id);
   const { data: cobradores = [] } = useQuery({ queryKey: ["cobradores"], queryFn: fetchCobradores, staleTime: 60_000 });
@@ -206,6 +212,39 @@ export default function ClientDetail() {
     }
   };
 
+  const handleDeleteClient = async () => {
+    setDeletingClient(true);
+    try {
+      const res = await fetch(`${API_BASE}/clients/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Error al eliminar");
+      queryClient.invalidateQueries({ queryKey: getGetClientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+      toast({ title: "Cliente eliminado", description: "El cliente fue eliminado correctamente." });
+      window.location.href = "/clients";
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el cliente." });
+      setDeletingClient(false);
+      setConfirmDeleteClient(false);
+    }
+  };
+
+  const handleDeleteLoan = async () => {
+    if (!confirmDeleteLoan) return;
+    setDeletingLoan(true);
+    try {
+      const res = await fetch(`${API_BASE}/loans/${confirmDeleteLoan.id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Error al eliminar");
+      queryClient.invalidateQueries({ queryKey: getGetClientQueryKey(id) });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardStatsQueryKey() });
+      toast({ title: "Préstamo eliminado", description: "El préstamo fue eliminado correctamente." });
+      setConfirmDeleteLoan(null);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el préstamo." });
+    } finally {
+      setDeletingLoan(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-12 text-center text-muted-foreground animate-pulse">Cargando datos del cliente...</div>;
   }
@@ -300,6 +339,12 @@ export default function ClientDetail() {
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-background hover:bg-white/5 text-sm font-medium transition-all"
             >
               <SlidersHorizontal className="w-4 h-4" /> Gestionar
+            </button>
+            <button
+              onClick={() => setConfirmDeleteClient(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-sm font-medium transition-all"
+            >
+              <Trash2 className="w-4 h-4" /> Eliminar
             </button>
             <Link href={`/loans/new?clientId=${client.id}`} className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(225,29,72,0.3)] flex items-center gap-2 text-sm whitespace-nowrap">
               <Plus className="w-4 h-4" /> Nuevo Préstamo
@@ -475,6 +520,12 @@ export default function ClientDetail() {
                           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-bold transition-all"
                         >
                           <FileText className="w-3.5 h-3.5" /> Contrato
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteLoan({ id: loan.id, amount: Number(loan.amount) })}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Eliminar
                         </button>
                       </div>
                     )}
@@ -743,6 +794,66 @@ export default function ClientDetail() {
           clientName={client.name}
           onClose={() => setContractLoanId(null)}
         />
+      )}
+
+      {/* Confirm delete client */}
+      {confirmDeleteClient && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={() => !deletingClient && setConfirmDeleteClient(false)}>
+          <div className="bg-card border border-red-500/30 rounded-3xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-red-500/15">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-bold">¿Eliminar cliente?</h3>
+                  <p className="text-xs text-muted-foreground">Se borrará <strong>{client.name}</strong> y todos sus préstamos y cuotas. No se puede deshacer.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmDeleteClient(false)} disabled={deletingClient}
+                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                  Cancelar
+                </button>
+                <button onClick={handleDeleteClient} disabled={deletingClient}
+                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                  {deletingClient ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                  {deletingClient ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm delete loan */}
+      {confirmDeleteLoan && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={() => !deletingLoan && setConfirmDeleteLoan(null)}>
+          <div className="bg-card border border-red-500/30 rounded-3xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-red-500/15">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-bold">¿Eliminar préstamo?</h3>
+                  <p className="text-xs text-muted-foreground">Se borrará el préstamo de <strong>{formatRD(confirmDeleteLoan.amount)}</strong> y todas sus cuotas. No se puede deshacer.</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setConfirmDeleteLoan(null)} disabled={deletingLoan}
+                  className="flex-1 py-3 rounded-xl border border-border text-muted-foreground hover:bg-white/5 font-semibold text-sm transition-all">
+                  Cancelar
+                </button>
+                <button onClick={handleDeleteLoan} disabled={deletingLoan}
+                  className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                  {deletingLoan ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                  {deletingLoan ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
