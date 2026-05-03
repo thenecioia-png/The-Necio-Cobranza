@@ -8,7 +8,7 @@ primary_region = "mia"   # Miami — más cercano a RD
 [env]
   NODE_ENV = "production"
   PORT = "8080"
-  DB_PATH = "/data/necio_cobranza.db"
+  DATABASE_URL = ""
   FRONTEND_DIST = "/app/artifacts/necio-app/dist/public"
 
 [http_service]
@@ -23,7 +23,4 @@ primary_region = "mia"   # Miami — más cercano a RD
   cpu_kind = "shared"
   cpus = 1
 
-# Volumen persistente para la base de datos SQLite
-[[mounts]]
-  source = "necio_data"
-  destination = "/data"
+# PostgreSQL via DATABASE_URL (sin volumen local necesario)

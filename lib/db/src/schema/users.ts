@@ -1,19 +1,19 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, varchar, serial, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const usersTable = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  username: text("username").notNull().unique(),
-  passwordHash: text("password_hash"),
-  name: text("name").notNull(),
-  email: text("email"),
-  oauthProvider: text("oauth_provider"),
-  oauthId: text("oauth_id"),
-  avatarUrl: text("avatar_url"),
-  role: text("role").notNull().default("admin"),
+export const usersTable = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: varchar("username", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }),
+  oauthProvider: varchar("oauth_provider", { length: 50 }),
+  oauthId: varchar("oauth_id", { length: 255 }),
+  avatarUrl: varchar("avatar_url", { length: 500 }),
+  role: varchar("role", { length: 50 }).notNull().default("admin"),
   businessId: integer("business_id"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });

@@ -1,28 +1,28 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, varchar, serial, integer, doublePrecision, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const clientsTable = sqliteTable("clients", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const clientsTable = pgTable("clients", {
+  id: serial("id").primaryKey(),
   businessId: integer("business_id"),
-  name: text("name").notNull(),
-  apodo: text("apodo"),
-  phone: text("phone"),
-  whatsapp: text("whatsapp"),
-  address: text("address"),
-  sector: text("sector"),
-  ciudad: text("ciudad"),
-  cedula: text("cedula"),
-  status: text("status").notNull().default("active"),
+  name: varchar("name", { length: 255 }).notNull(),
+  apodo: varchar("apodo", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  whatsapp: varchar("whatsapp", { length: 50 }),
+  address: varchar("address", { length: 500 }),
+  sector: varchar("sector", { length: 255 }),
+  ciudad: varchar("ciudad", { length: 255 }),
+  cedula: varchar("cedula", { length: 50 }),
+  status: varchar("status", { length: 50 }).notNull().default("active"),
   riskScore: integer("risk_score").notNull().default(50),
-  notes: text("notes"),
-  fiadorName: text("fiador_name"),
-  fiadorPhone: text("fiador_phone"),
+  notes: varchar("notes", { length: 2000 }),
+  fiadorName: varchar("fiador_name", { length: 255 }),
+  fiadorPhone: varchar("fiador_phone", { length: 50 }),
   cobradorId: integer("cobrador_id"),
-  avatarUrl: text("avatar_url"),
-  gpsLat: real("gps_lat"),
-  gpsLng: real("gps_lng"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()).notNull(),
+  avatarUrl: varchar("avatar_url", { length: 500 }),
+  gpsLat: doublePrecision("gps_lat"),
+  gpsLng: doublePrecision("gps_lng"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const insertClientSchema = createInsertSchema(clientsTable).omit({ id: true, createdAt: true });

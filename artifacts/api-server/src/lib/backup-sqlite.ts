@@ -1,16 +1,16 @@
 import fs from "fs";
 import path from "path";
-import { sqlite } from "@workspace/db";
+import { exec } from "child_process";
+import { promisify } from "util";
 
-const DB_PATH = process.env.DB_PATH
-  ? path.resolve(process.env.DB_PATH)
-  : path.join(process.cwd(), "necio_cobranza.db");
+const execAsync = promisify(exec);
 
 const BACKUP_BASE = process.env.BACKUP_DIR || "C:\\BotBackups";
 const MAX_BACKUPS = 30;
 
 /**
- * Copia el archivo SQLite a C:\BotBackups\[nombre-negocio]\backup_YYYY-MM-DDTHH-MM-SS.db
+ * Realiza un backup de la base de datos PostgreSQL usando pg_dump
+ * y lo guarda en C:\BotBackups\[nombre-negocio]\backup_YYYY-MM-DDTHH-MM-SS.sql
  * Retorna la ruta del backup creado.
  */
 export async function backupDatabase(businessName: string): Promise<string> {
@@ -23,19 +23,20 @@ export async function backupDatabase(businessName: string): Promise<string> {
 
   const now = new Date();
   const dateStr = now.toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const filename = `backup_${dateStr}.db`;
+  const filename = `backup_${dateStr}.sql`;
   const dest = path.join(dir, filename);
 
-  // Usar el API de backup de better-sqlite3 (safe hot backup)
-  await new Promise<void>((resolve, reject) => {
-    sqlite.backup(dest)
-      .then(() => resolve())
-      .catch(reject);
-  });
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL no está configurada para el backup");
+  }
+
+  // Usar pg_dump para hacer un backup SQL completo
+  await execAsync(`pg_dump "${databaseUrl}" > "${dest}"`);
 
   // Mantener solo los últimos MAX_BACKUPS backups
   const files = fs.readdirSync(dir)
-    .filter(f => f.startsWith("backup_") && f.endsWith(".db"))
+    .filter(f => f.startsWith("backup_") && f.endsWith(".sql"))
     .sort();
 
   if (files.length > MAX_BACKUPS) {
@@ -58,13 +59,13 @@ export function scheduleAutoBackup(businessName: string): void {
   // Primer backup 30 segundos después de arrancar
   setTimeout(() => {
     backupDatabase(businessName).catch(err =>
-      console.error("[BackupSQLite] Error en backup inicial:", err)
+      console.error("[BackupPostgreSQL] Error en backup inicial:", err)
     );
   }, 30_000);
 
   setInterval(() => {
     backupDatabase(businessName).catch(err =>
-      console.error("[BackupSQLite] Error en backup automático:", err)
+      console.error("[BackupPostgreSQL] Error en backup automático:", err)
     );
   }, INTERVAL_MS);
 }
