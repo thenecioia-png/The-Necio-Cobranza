@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import JSON5 from "json5";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -34,7 +35,7 @@ app.use(
   }),
 );
 app.use(cors({ origin: true, credentials: true }));
-// Middleware personalizado para parsear JSON (evita WAF que elimina comillas)
+// Middleware personalizado para parsear JSON (evita WAF de Railway que elimina comillas)
 app.use((req, res, next) => {
   const contentType = req.headers['content-type'] || '';
   if (contentType.includes('application/json') || contentType.includes('text/plain')) {
@@ -43,11 +44,11 @@ app.use((req, res, next) => {
     req.on('end', () => {
       try {
         req.body = data ? JSON.parse(data) : {};
-      } catch (e) {
-        // Intentar reparar JSON sin comillas (WAF damage): {a:"b"} → {"a":"b"}
+      } catch {
+        // WAF de Railway elimina comillas dobles del JSON.
+        // JSON5 puede parsear JSON con propiedades/valores sin comillas.
         try {
-          const fixed = data.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
-          req.body = fixed ? JSON.parse(fixed) : {};
+          req.body = data ? JSON5.parse(data) : {};
         } catch {
           req.body = {};
         }
