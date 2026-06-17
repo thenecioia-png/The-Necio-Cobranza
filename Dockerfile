@@ -25,4 +25,4 @@ ENV FRONTEND_DIST=/app/artifacts/necio-app/dist/public
 
 EXPOSE 8080
 
-CMD ["node", "artifacts/api-server/dist/index.mjs"]
+CMD ["sh", "-c", "cd /app/lib/db && pnpm run push --config ./drizzle.config.ts && cd /app && node artifacts/api-server/dist/index.mjs"]
