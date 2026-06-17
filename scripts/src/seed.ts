@@ -1,10 +1,6 @@
 import { db, usersTable, clientsTable, loansTable, installmentsTable } from "@workspace/db";
-import crypto from "crypto";
+import { hashPassword } from "../../artifacts/api-server/src/lib/password";
 import { eq } from "drizzle-orm";
-
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
-}
 
 function generateInstallmentDates(
   startDate: string,

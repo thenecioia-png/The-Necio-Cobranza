@@ -11,6 +11,9 @@ primary_region = "mia"   # Miami — más cercano a RD
   DATABASE_URL = ""
   FRONTEND_DIST = "/app/artifacts/necio-app/dist/public"
 
+[deploy]
+  release_command = "cd /app/lib/db && pnpm run push --config ./drizzle.config.ts"
+
 [http_service]
   internal_port = 8080
   force_https = true

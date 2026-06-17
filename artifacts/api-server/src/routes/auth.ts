@@ -1,21 +1,43 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, businessesTable } from "@workspace/db";
+import { db, usersTable, businessesTable, passwordResetTokensTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { LoginBody } from "@workspace/api-zod";
-import crypto from "crypto";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import { Strategy as GitHubStrategy } from "passport-github2";
 import { OAuth2Client } from "google-auth-library";
+import rateLimit from "express-rate-limit";
 import { sendPasswordReset } from "../lib/mailer";
-import { createPasswordResetToken, verifyPasswordResetToken } from "./confirmations";
+import {
+  hashPassword,
+  verifyPassword,
+  verifyLegacySha256,
+  isLegacyHash,
+} from "../lib/password";
+import {
+  createPasswordResetToken,
+  verifyPasswordResetToken,
+} from "./confirmations";
 
 const router: IRouter = Router();
 
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
-}
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  message: { error: "Demasiados intentos. Intenta más tarde." },
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados intentos de recuperación. Intenta más tarde." },
+});
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -290,7 +312,7 @@ router.post("/google/verify", async (req, res) => {
 
 // --- Traditional auth ---
 
-router.post("/register", async (req, res) => {
+router.post("/register", authLimiter, async (req, res) => {
   const { username, password, name, businessName } = req.body;
   if (!username || !password || !name) {
     res.status(400).json({ error: "Todos los campos son requeridos" });
@@ -328,7 +350,7 @@ router.post("/register", async (req, res) => {
   });
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Datos inválidos" });
@@ -336,7 +358,6 @@ router.post("/login", async (req, res) => {
   }
 
   const { username, password } = parsed.data;
-  const passwordHash = hashPassword(password);
 
   const users = await db
     .select()
@@ -345,9 +366,30 @@ router.post("/login", async (req, res) => {
     .limit(1);
 
   const user = users[0];
-  if (!user || user.passwordHash !== passwordHash) {
+  if (!user) {
     res.status(401).json({ error: "Usuario o contraseña incorrectos" });
     return;
+  }
+
+  // Legacy SHA-256 migration: if the stored hash is not bcrypt, verify and rehash.
+  let passwordValid = false;
+  if (isLegacyHash(user.passwordHash)) {
+    passwordValid = verifyLegacySha256(password, user.passwordHash!);
+  } else {
+    passwordValid = verifyPassword(password, user.passwordHash);
+  }
+
+  if (!passwordValid) {
+    res.status(401).json({ error: "Usuario o contraseña incorrectos" });
+    return;
+  }
+
+  // Rehash legacy passwords with bcrypt.
+  if (isLegacyHash(user.passwordHash)) {
+    await db
+      .update(usersTable)
+      .set({ passwordHash: hashPassword(password) })
+      .where(eq(usersTable.id, user.id));
   }
 
   (req.session as any).userId = user.id;
@@ -386,7 +428,7 @@ router.get("/me", async (req, res) => {
 });
 
 // Password recovery
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", passwordResetLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email) {
     res.status(400).json({ error: "Email requerido" });
@@ -401,25 +443,26 @@ router.post("/forgot-password", async (req, res) => {
   }
 
   const user = users[0];
-  const token = createPasswordResetToken(user.id, user.username);
+  const token = await createPasswordResetToken(user.id, user.username);
   const result = await sendPasswordReset(user.username, token);
 
   if (result.sent) {
     res.json({ message: "Si el usuario existe, recibirás un correo con instrucciones." });
   } else {
-    // Fallback: return token in response for testing
-    res.json({ message: "Email no configurado. Token de recuperación:", token, emailConfigured: false });
+    // Token is never leaked to the client. Invalidate it and report a service error.
+    await db.delete(passwordResetTokensTable).where(eq(passwordResetTokensTable.token, token));
+    res.status(503).json({ error: "El servicio de correo no está configurado. Contacta al administrador." });
   }
 });
 
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", passwordResetLimiter, async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) {
     res.status(400).json({ error: "Token y contraseña requeridos" });
     return;
   }
 
-  const resetInfo = verifyPasswordResetToken(token);
+  const resetInfo = await verifyPasswordResetToken(token);
   if (!resetInfo) {
     res.status(400).json({ error: "Token inválido o expirado" });
     return;

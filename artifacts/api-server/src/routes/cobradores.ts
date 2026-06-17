@@ -3,13 +3,9 @@ import { db, usersTable, clientsTable } from "@workspace/db";
 import { eq, and, count, inArray } from "drizzle-orm";
 import { installmentsTable } from "@workspace/db";
 import { loansTable } from "@workspace/db";
-import crypto from "crypto";
+import { hashPassword } from "../lib/password";
 
 const router: IRouter = Router();
-
-function hashPassword(p: string) {
-  return crypto.createHash("sha256").update(p).digest("hex");
-}
 
 async function getAdminUser(req: any) {
   const userId = req.session?.userId;

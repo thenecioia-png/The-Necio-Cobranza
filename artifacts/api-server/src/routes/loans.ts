@@ -67,6 +67,16 @@ router.post("/", async (req, res) => {
   const data = parsed.data;
   const totalAmount = data.amount + (data.amount * data.interestRate / 100);
 
+  const bizId = await getBusinessId(req);
+  const clientWhere = bizId !== null
+    ? and(eq(clientsTable.id, data.clientId), eq(clientsTable.businessId, bizId))
+    : eq(clientsTable.id, data.clientId);
+  const [client] = await db.select({ id: clientsTable.id }).from(clientsTable).where(clientWhere).limit(1);
+  if (!client) {
+    res.status(403).json({ error: "Cliente no encontrado o no pertenece a tu negocio" });
+    return;
+  }
+
   const [loan] = await db.insert(loansTable).values({
     clientId: data.clientId,
     amount: data.amount.toFixed(2),
@@ -112,7 +122,7 @@ router.delete("/:id", async (req, res) => {
     res.status(400).json({ error: "ID inválido" });
     return;
   }
-  if (!code || !verifyConfirmationCode("delete-loan", loanId, code)) {
+  if (!code || !(await verifyConfirmationCode("delete-loan", loanId, code))) {
     res.status(400).json({ error: "Código de confirmación inválido o expirado" });
     return;
   }

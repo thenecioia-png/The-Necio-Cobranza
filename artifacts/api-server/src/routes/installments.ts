@@ -6,6 +6,13 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+async function getBusinessId(req: any): Promise<number | null> {
+  const userId = req.session?.userId;
+  if (!userId) return null;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return user?.businessId ?? null;
+}
+
 router.get("/today", async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
   const userId = (req.session as any)?.userId as number | undefined;
@@ -99,6 +106,24 @@ router.post("/:id/pay", async (req, res) => {
     return;
   }
 
+  const bizId = await getBusinessId(req);
+  if (bizId !== null) {
+    const [owner] = await db
+      .select({ id: clientsTable.id })
+      .from(installmentsTable)
+      .innerJoin(loansTable, eq(installmentsTable.loanId, loansTable.id))
+      .innerJoin(clientsTable, eq(loansTable.clientId, clientsTable.id))
+      .where(and(
+        eq(installmentsTable.id, parsed.data.id),
+        eq(clientsTable.businessId, bizId),
+      ))
+      .limit(1);
+    if (!owner) {
+      res.status(403).json({ error: "No autorizado" });
+      return;
+    }
+  }
+
   if (installment.status === "paid") {
     res.status(409).json({ error: "Esta cuota ya fue pagada" });
     return;
@@ -146,7 +171,7 @@ router.post("/:id/pay", async (req, res) => {
       if (!phone || !client) return;
       const cleaned = phone.replace(/\D/g, "");
       const e164 = cleaned.length === 10 ? `+1${cleaned}` : cleaned.length === 11 && cleaned.startsWith("1") ? `+${cleaned}` : `+${cleaned}`;
-      const amount = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(updated.amount);
+      const amount = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(Number(updated.amount));
       const msg = `✅ *Pago Confirmado*\n\nHola ${client.clientName},\n\nRegistramos tu pago de *${amount}* para la cuota del ${new Date(updated.dueDate).toLocaleDateString("es-DO")}.\n\n¡Gracias! 🙌\n\n_The Necio Cobranza_`;
       const from = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
       twilioClient.messages.create({ from, to: `whatsapp:${e164}`, body: msg })
@@ -246,6 +271,19 @@ router.post("/abono/:clientId", async (req, res) => {
     return;
   }
 
+  const bizId = await getBusinessId(req);
+  if (bizId !== null) {
+    const [client] = await db
+      .select({ id: clientsTable.id })
+      .from(clientsTable)
+      .where(and(eq(clientsTable.id, clientId), eq(clientsTable.businessId, bizId)))
+      .limit(1);
+    if (!client) {
+      res.status(403).json({ error: "No autorizado" });
+      return;
+    }
+  }
+
   let remaining = amount;
 
   const pendingInstallments = await db
@@ -336,6 +374,20 @@ router.post("/abono-loan/:loanId", async (req, res) => {
     return;
   }
 
+  const bizId = await getBusinessId(req);
+  if (bizId !== null) {
+    const [owner] = await db
+      .select({ id: clientsTable.id })
+      .from(loansTable)
+      .innerJoin(clientsTable, eq(loansTable.clientId, clientsTable.id))
+      .where(and(eq(loansTable.id, loanId), eq(clientsTable.businessId, bizId)))
+      .limit(1);
+    if (!owner) {
+      res.status(403).json({ error: "No autorizado" });
+      return;
+    }
+  }
+
   const pendingInstallments = await db
     .select({ id: installmentsTable.id, amount: installmentsTable.amount, paidAmount: installmentsTable.paidAmount, dueDate: installmentsTable.dueDate })
     .from(installmentsTable)
@@ -420,6 +472,20 @@ router.post("/loan/:loanId/liquidar", async (req, res) => {
   if (isNaN(loanId)) {
     res.status(400).json({ error: "ID inválido" });
     return;
+  }
+
+  const bizId = await getBusinessId(req);
+  if (bizId !== null) {
+    const [owner] = await db
+      .select({ id: clientsTable.id })
+      .from(loansTable)
+      .innerJoin(clientsTable, eq(loansTable.clientId, clientsTable.id))
+      .where(and(eq(loansTable.id, loanId), eq(clientsTable.businessId, bizId)))
+      .limit(1);
+    if (!owner) {
+      res.status(403).json({ error: "No autorizado" });
+      return;
+    }
   }
 
   const pending = await db

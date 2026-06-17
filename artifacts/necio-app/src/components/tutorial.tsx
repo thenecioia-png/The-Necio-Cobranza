@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const AUTH_PATHS = ["/", "/register", "/forgot-password", "/reset-password"];
+
 const STORAGE_KEY = "necio_tutorial_done";
 
 interface Step {
@@ -225,14 +227,15 @@ export function useTutorial() {
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [pathname] = useLocation();
 
   useEffect(() => {
     const done = localStorage.getItem(STORAGE_KEY);
-    if (!done) {
+    if (!done && !AUTH_PATHS.includes(pathname)) {
       const timer = setTimeout(() => setOpen(true), 1500);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [pathname]);
 
   const start = () => setOpen(true);
   const close = () => setOpen(false);

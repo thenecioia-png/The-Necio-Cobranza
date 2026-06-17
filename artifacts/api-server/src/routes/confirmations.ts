@@ -1,89 +1,124 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
-import { sendConfirmationCode, sendPasswordReset, isEmailConfigured } from "../lib/mailer";
+import rateLimit from "express-rate-limit";
+import { db, confirmationCodesTable, passwordResetTokensTable } from "@workspace/db";
+import { eq, and, gt, isNull } from "drizzle-orm";
+import { sendConfirmationCode, isEmailConfigured } from "../lib/mailer";
 
 const router: IRouter = Router();
 
-interface CodeEntry {
-  code: string;
-  action: string;
-  targetId: string;
-  email: string;
-  expiresAt: number;
-}
+const confirmLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiados códigos. Intenta más tarde." },
+});
 
-const codeStore = new Map<string, CodeEntry>();
-
-// Password reset tokens
-interface ResetTokenEntry {
-  userId: number;
-  email: string;
-  expiresAt: number;
-}
-const resetTokenStore = new Map<string, ResetTokenEntry>();
-
-function generateCode(action?: string): string {
-  // Código fijo para eliminaciones (según solicitud del usuario)
-  if (action === "delete-client" || action === "delete-loan") {
-    return "190021";
-  }
+function generateCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-function getKey(action: string, targetId: string): string {
-  return `${action}:${targetId}`;
+function generateToken(): string {
+  return crypto.randomBytes(32).toString("hex");
 }
 
-export function verifyConfirmationCode(action: string, targetId: string, code: string): boolean {
-  const key = getKey(action, String(targetId));
-  const entry = codeStore.get(key);
+export async function verifyConfirmationCode(
+  action: string,
+  targetId: string | number,
+  code: string,
+): Promise<boolean> {
+  const key = `${action}:${String(targetId)}`;
+  const [entry] = await db
+    .select()
+    .from(confirmationCodesTable)
+    .where(
+      and(
+        eq(confirmationCodesTable.action, action),
+        eq(confirmationCodesTable.targetId, String(targetId)),
+        eq(confirmationCodesTable.code, String(code)),
+        gt(confirmationCodesTable.expiresAt, new Date()),
+        isNull(confirmationCodesTable.usedAt),
+      ),
+    )
+    .limit(1);
+
   if (!entry) return false;
-  if (Date.now() > entry.expiresAt) {
-    codeStore.delete(key);
-    return false;
-  }
-  if (entry.code !== String(code)) return false;
-  codeStore.delete(key);
+
+  await db
+    .update(confirmationCodesTable)
+    .set({ usedAt: new Date() })
+    .where(eq(confirmationCodesTable.id, entry.id));
   return true;
 }
 
-export function createPasswordResetToken(userId: number, email: string): string {
-  const token = crypto.randomBytes(32).toString("hex");
-  resetTokenStore.set(token, {
+export async function createPasswordResetToken(
+  userId: number,
+  email: string,
+): Promise<string> {
+  const token = generateToken();
+  await db.insert(passwordResetTokensTable).values({
+    token,
     userId,
     email,
-    expiresAt: Date.now() + 60 * 60 * 1000, // 1 hora
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hora
   });
   return token;
 }
 
-export function verifyPasswordResetToken(token: string): { userId: number; email: string } | null {
-  const entry = resetTokenStore.get(token);
+export async function verifyPasswordResetToken(
+  token: string,
+): Promise<{ userId: number; email: string } | null> {
+  const [entry] = await db
+    .select()
+    .from(passwordResetTokensTable)
+    .where(
+      and(
+        eq(passwordResetTokensTable.token, token),
+        gt(passwordResetTokensTable.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+
   if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    resetTokenStore.delete(token);
-    return null;
-  }
-  resetTokenStore.delete(token);
+
+  await db
+    .delete(passwordResetTokensTable)
+    .where(eq(passwordResetTokensTable.token, token));
   return { userId: entry.userId, email: entry.email };
 }
 
 // POST /api/confirmations/send
-router.post("/send", async (req, res) => {
+router.post("/send", confirmLimiter, async (req, res) => {
   const { action, targetId, email } = req.body;
   if (!action || !targetId || !email) {
     res.status(400).json({ error: "Faltan datos" });
     return;
   }
 
-  const code = generateCode(action);
-  const key = getKey(action, String(targetId));
-  codeStore.set(key, {
-    code,
+  if (!isEmailConfigured()) {
+    res.status(503).json({ error: "El servicio de correo no está configurado." });
+    return;
+  }
+
+  const code = generateCode();
+
+  // Delete any existing pending code for this action+target.
+  await db
+    .delete(confirmationCodesTable)
+    .where(
+      and(
+        eq(confirmationCodesTable.action, String(action)),
+        eq(confirmationCodesTable.targetId, String(targetId)),
+      ),
+    );
+
+  await db.insert(confirmationCodesTable).values({
     action: String(action),
     targetId: String(targetId),
+    code,
     email: String(email),
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutos
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutos
   });
 
   const result = await sendConfirmationCode(email, code, action);
@@ -91,40 +126,24 @@ router.post("/send", async (req, res) => {
   if (result.sent) {
     res.json({ message: "Código enviado", emailConfigured: true });
   } else {
-    // Fallback: devolver el código en la respuesta para que el frontend lo muestre
-    res.json({ message: "Código generado (email no configurado)", code, emailConfigured: false });
+    res.status(503).json({ error: "No se pudo enviar el correo. Inténtalo más tarde." });
   }
 });
 
 // POST /api/confirmations/verify
-router.post("/verify", async (req, res) => {
+router.post("/verify", confirmLimiter, async (req, res) => {
   const { action, targetId, code } = req.body;
   if (!action || !targetId || !code) {
     res.status(400).json({ error: "Faltan datos" });
     return;
   }
 
-  const key = getKey(action, String(targetId));
-  const entry = codeStore.get(key);
-
-  if (!entry) {
-    res.status(400).json({ error: "Código no encontrado o expirado" });
+  const valid = await verifyConfirmationCode(action, targetId, code);
+  if (!valid) {
+    res.status(400).json({ error: "Código no encontrado, expirado o incorrecto" });
     return;
   }
 
-  if (Date.now() > entry.expiresAt) {
-    codeStore.delete(key);
-    res.status(400).json({ error: "Código expirado" });
-    return;
-  }
-
-  if (entry.code !== String(code)) {
-    res.status(400).json({ error: "Código incorrecto" });
-    return;
-  }
-
-  // Marcar como verificado (eliminar para evitar reuso)
-  codeStore.delete(key);
   res.json({ verified: true });
 });
 

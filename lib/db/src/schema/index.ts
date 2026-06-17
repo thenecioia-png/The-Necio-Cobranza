@@ -9,3 +9,5 @@ export * from "./expenses";
 export * from "./contabilidad";
 export * from "./pagos";
 export * from "./cobrador_locations";
+export * from "./password_reset_tokens";
+export * from "./confirmation_codes";

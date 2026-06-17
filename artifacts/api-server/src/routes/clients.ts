@@ -226,7 +226,7 @@ router.get("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const { code } = req.body;
   const clientId = Number(req.params.id);
-  if (!code || !verifyConfirmationCode("delete-client", clientId, code)) {
+  if (!code || !(await verifyConfirmationCode("delete-client", clientId, code))) {
     res.status(400).json({ error: "Código de confirmación inválido o expirado" });
     return;
   }
